@@ -21,7 +21,10 @@ set(dependencies
 
 # Add executable
 add_executable(particle_filter src/particle_filter.cpp)
-ament_target_dependencies(particle_filter ${dependencies})
+#ament_target_dependencies(particle_filter ${dependencies})
+
+add_executable(particle_filter_node src/particle_filter_node.cpp)
+ament_target_dependencies(particle_filter_node ${dependencies})
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -40,6 +43,7 @@ include_directories(
 )
 install(TARGETS
         particle_filter
+        particle_filter_node
         DESTINATION lib/${PROJECT_NAME}
         )
 

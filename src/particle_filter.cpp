@@ -1,80 +1,100 @@
 //
 // Created by ola on 6/14/23.
 //
+#include <random>
+#include <algorithm>
+#include <map>
+#include <numeric>
+#include <math.h>
 
 #include "particle_filter/particle_filter.h"
-#include <chrono>
+
 #include <functional>
 #include <memory>
 #include <string>
-#include "rclcpp/rclcpp.hpp"
-#include "visualization_msgs/msg/marker.hpp"
-#include "visualization_msgs/msg/marker_array.hpp"
 #include <cmath>
 
-#include "std_msgs/msg/string.hpp"
+#define EPSILON 1e-4
 
 
-class ParticleFilter : public rclcpp::Node //creates a node class by inheriting from node
-{
-public:
-    ParticleFilter()
-    : Node("particle_filter")
-    {
-        // publish for the marker array
-        publisher_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("marker_array_topic", 10);
+void ParticleFilter::init(std::pair<double, double> x_bound, std::pair<double, double> y_bound,
+                          std::pair<double, double> z_bound,
+                          std::pair<double, double> theta_bound) {
+    // TODO: Set the number of particles. Initialize all particles to first position (based on estimates of
+    //   x, y, theta and their uncertainties from GPS) and all weights to 1.
+    // Add random Gaussian noise to each particle.
+    // NOTE: Consult particle_filter.h for more information about this method (and others in this file).
 
-        // timer to periodically publish the array
-        timer_ = this->create_wall_timer(std::chrono::seconds(1), std::bind(&ParticleFilter::publishMarkerArray, this));
+    std::default_random_engine gen;
+    std::normal_distribution<double> xNoise(x_bound.first, x_bound.second);
+    std::uniform_real_distribution<double> yNoise(y_bound.first, y_bound.second);
+    std::uniform_real_distribution<double> zNoise(z_bound.first, z_bound.second);
+    std::normal_distribution<double> yawNoise(theta_bound.first, theta_bound.second);
+
+    particles.clear();
+    weights.clear();
+    for (int i = 0; i < num_particles; ++i) {
+        Particle p = {i, xNoise(gen), yNoise(gen), yawNoise(gen), 1};
+        particles.push_back(p);
+        weights.push_back(1);
     }
+    is_initialized = true;
+}
 
-private:
-    void publishMarkerArray()
-    {
-        // Create a marker array message
-        auto markerArrayMsg = std::make_shared<visualization_msgs::msg::MarkerArray>();
+void ParticleFilter::motion_model(double delta_t, std::array<double, 4> std_pos, double velocity, double yaw_rate) {
+    std::default_random_engine gen;
+    std::normal_distribution<double> xNoise(0, std_pos[0]);
+    std::normal_distribution<double> yNoise(0, std_pos[1]);
+    std::normal_distribution<double> zNoise(0, std_pos[2]);
+    std::normal_distribution<double> yawNoise(0, std_pos[3]);
+    auto particles_before = particles;
 
-        // Populate the marker array with markers
-        for (int i = 0; i < 5; ++i)
-        {
-            // Create a marker message
-            visualization_msgs::msg::Marker marker;
+    for (auto &p: particles) {
+        double yaw = p.theta;
 
-            // Set the marker properties
-            marker.header.frame_id = "map";
-            marker.header.stamp = this->get_clock()->now();
-            marker.id = i;
-            marker.type = visualization_msgs::msg::Marker::ARROW;
-            marker.action = visualization_msgs::msg::Marker::ADD;
-            marker.pose.position.x = i * 0.1;
-            marker.pose.position.y = i * 0.2;
-            marker.pose.position.z = i * 0.3;
-            marker.pose.orientation.w = 1.0;
-            marker.scale.x = 0.05;  // Set the scale to make the arrow thinner
-            marker.scale.y = 0.01;  // Set the scale to make the arrow thinner
-            marker.scale.z = 0.01;  // Set the scale to make the arrow thinner
-            marker.color.r = 1.0;
-            marker.color.g = 0.0;
-            marker.color.b = 0.0;
-            marker.color.a = 1.0;
+        double delta_x = 0;
+        double delta_y = 0;
+        double delta_z = 0;
+        double delta_yaw = 0;
 
-            // Add the marker to the marker array
-            markerArrayMsg->markers.push_back(marker);
+        if (fabs(yaw_rate) < EPSILON) {
+            delta_x = velocity * delta_t * cos(yaw);
+            delta_y = velocity * delta_t * sin(yaw);
+
+        } else {
+            double c = velocity / yaw_rate;
+            delta_x = c * (sin(yaw + yaw_rate * delta_t) - sin(yaw));
+            delta_y = c * (cos(yaw) - cos(yaw + yaw_rate * delta_t));
+            delta_yaw = yaw_rate * delta_t;
+
         }
-        // Publish the marker array
-        publisher_->publish(*markerArrayMsg);
+        //Add control noise
+        delta_x += xNoise(gen) * delta_t;
+        delta_y += yNoise(gen) * delta_t;
+        delta_z += zNoise(gen) * delta_t;
+        delta_yaw += yawNoise(gen) * delta_t;
+
+
+        p.x += delta_x;
+        p.y += delta_y;
+        p.z += delta_z;
+        p.theta += delta_yaw;
     }
 
-    rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr publisher_;
-    rclcpp::TimerBase::SharedPtr timer_;
+    enforce_non_collision(particles_before);
+    //To do: restore collsion particles to their old values
+}
 
-};
+void ParticleFilter::resample() {
 
-int main(int argc, char **argv)
-{
-    rclcpp::init(argc, argv);
-    auto node = std::make_shared<ParticleFilter>();
-    rclcpp::spin(node);
-    rclcpp::shutdown();
-    return 0;
+    // NOTE: You may find std::discrete_distribution helpful here.
+    //   http://en.cppreference.com/w/cpp/numeric/random/discrete_distribution
+    std::default_random_engine gen;
+    std::discrete_distribution<int> d(weights.begin(), weights.end());
+    std::vector<Particle> resampled_particles(particles.size());
+    for (int i = 0; i < num_particles; ++i) {
+        int idx = d(gen);
+        resampled_particles[i] = particles[idx];
+    }
+    particles = resampled_particles;
 }
