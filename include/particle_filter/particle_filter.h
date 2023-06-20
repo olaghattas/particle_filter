@@ -69,6 +69,7 @@ public:
     void enforce_non_collision(const std::vector<Particle> &part);
 
 
+
 };
 
 

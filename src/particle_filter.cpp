@@ -13,6 +13,7 @@
 #include <memory>
 #include <string>
 #include <cmath>
+#include <Eigen/Dense>
 
 #define EPSILON 1e-4
 
@@ -97,4 +98,18 @@ void ParticleFilter::resample() {
         resampled_particles[i] = particles[idx];
     }
     particles = resampled_particles;
+}
+
+// Function to perform the projection
+std::vector<Eigen::Vector2d> projectParticlesto2D(const std::vector<Particle> &particles, const Eigen::Matrix3d &cameraMatrix)
+{   std::vector<Eigen::Vector2d> projectedPoints;
+    projectedPoints.reserve(particles.size());
+
+    for (const auto& particle : particles) {
+        Eigen::Vector2d point2D;
+        point2D << (cameraMatrix(0, 0) * particle.x + cameraMatrix(0, 1) * particle.y + cameraMatrix(0, 2) * particle.z) / (cameraMatrix(2, 0) * particle.x + cameraMatrix(2, 1) * particle.y + cameraMatrix(2, 2) * particle.z),
+                (cameraMatrix(1, 0) * particle.x + cameraMatrix(1, 1) * particle.y + cameraMatrix(1, 2) * particle.z) / (cameraMatrix(2, 0) * particle.x + cameraMatrix(2, 1) * particle.y + cameraMatrix(2, 2) * particle.z);
+        projectedPoints.push_back(point2D);
+    }
+    return projectedPoints;
 }

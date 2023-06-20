@@ -12,19 +12,33 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
-find_package(visualization_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)# Find Eigen package
+find_package(eigen3_cmake_module REQUIRED)
+find_package(Eigen3 REQUIRED)
+#find_package(generate_parameter_library REQUIRED)
+find_package(sensor_msgs REQUIRED)
+include_directories(${sensor_msgs_INCLUDE_DIRS})
 
-set(dependencies
+set(dependencies1
         rclcpp
         visualization_msgs
+        eigen3_cmake_module
+        Eigen3
+        sensory_msgs
+
+        )
+set(dependencies2
+        eigen3_cmake_module
+        Eigen3
+
         )
 
 # Add executable
 add_executable(particle_filter src/particle_filter.cpp)
-#ament_target_dependencies(particle_filter ${dependencies})
+ament_target_dependencies(particle_filter ${dependencies2})
 
 add_executable(particle_filter_node src/particle_filter_node.cpp)
-ament_target_dependencies(particle_filter_node ${dependencies})
+ament_target_dependencies(particle_filter_node ${dependencies1})
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -40,6 +54,7 @@ endif()
 
 include_directories(
         include
+        ${EIGEN3_INCLUDE_DIRS}
 )
 install(TARGETS
         particle_filter
