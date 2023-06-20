@@ -24,7 +24,7 @@ set(dependencies1
         visualization_msgs
         eigen3_cmake_module
         Eigen3
-        sensory_msgs
+        sensor_msgs
 
         )
 set(dependencies2
@@ -34,22 +34,18 @@ set(dependencies2
         )
 
 # Add executable
-add_executable(particle_filter src/particle_filter.cpp)
+add_library(particle_filter src/particle_filter.cpp)
 ament_target_dependencies(particle_filter ${dependencies2})
 
 add_executable(particle_filter_node src/particle_filter_node.cpp)
 ament_target_dependencies(particle_filter_node ${dependencies1})
+target_link_libraries(particle_filter_node particle_filter)
 
 if(BUILD_TESTING)
-  find_package(ament_lint_auto REQUIRED)
-  # the following line skips the linter which checks for copyrights
-  # comment the line when a copyright and license is added to all source files
-  set(ament_cmake_copyright_FOUND TRUE)
-  # the following line skips cpplint (only works in a git repo)
-  # comment the line when this package is in a git repo and when
-  # a copyright and license is added to all source files
-  set(ament_cmake_cpplint_FOUND TRUE)
-  ament_lint_auto_find_test_dependencies()
+  add_executable(particle_filter_test tests/test.cpp)
+  ament_target_dependencies(particle_filter_test ${dependencies2})
+  target_link_libraries(particle_filter_test particle_filter)
+
 endif()
 
 include_directories(

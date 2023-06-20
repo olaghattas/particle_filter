@@ -5,10 +5,9 @@
 #ifndef SMART_HOME_PARTICLE_FILTER_H
 #define SMART_HOME_PARTICLE_FILTER_H
 
-//#include <sstream>
-//#include <fstream>
 #include <math.h>
 #include <vector>
+#include <array>
 //
 
 struct Particle {
@@ -56,7 +55,7 @@ public:
 
     void init(std::pair<double, double>  x, std::pair<double, double>  y, std::pair<double, double>  z, std::pair<double, double>  theta);
     void motion_model(double delta_t, std::array<double,4> std_pos, double velocity, double yaw_rate);
-    void updateWeights(double sensor_range, double std_landmark[], std::vector<LandmarkObs> observations );
+//    void updateWeights(double sensor_range, double std_landmark[], std::vector<LandmarkObs> observations ); TODO
     void resample();
     void publish_particles(const std::vector<Particle> &particles);
 

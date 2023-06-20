@@ -2,31 +2,34 @@
 // Created by ola on 6/15/23.
 //
 #include "particle_filter/particle_filter.h"
-#include "particle_filter.cpp"
+//#include "particle_filter.cpp"
 #include "visualization_msgs/msg/marker.hpp"
 #include "visualization_msgs/msg/marker_array.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include <chrono>
-#include <sensor_msgs/msg/CameraInfo.hpp>
+#include <sensor_msgs/msg/camera_info.hpp>
 #include <iostream>
 #include <Eigen/Dense>
 
 
-
 class ParticleFilterNode : public rclcpp::Node {
-
 private:
-    ParticleFilterNode() : Node("particle_filter") {
-        // subscribe to camera info to get intrinsic parameters
-        auto cameraInfoSub = node->create_subscription<sensor_msgs::msg::CameraInfo>(
-                "/camera_info", 1, cameraInfoCallback);
 
-        rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr publisher_;
-        rclcpp::TimerBase::SharedPtr timer_;
-        Eigen::Matrix3d cameraMatrix;
-    }
+    rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr publisher_;
+    rclcpp::TimerBase::SharedPtr timer_;
+    Eigen::Matrix3d cameraMatrix;
 
 public:
+    ParticleFilterNode() : Node("particle_filter") {
+        // subscribe to camera info to get intrinsic parameters
+        auto cameraInfoSub = create_subscription<sensor_msgs::msg::CameraInfo>(
+                "/camera_info", 1,
+                [this](const sensor_msgs::msg::CameraInfo::SharedPtr msg) { cameraInfoCallback(msg); });
+
+        publisher_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("marker", 10);
+
+    }
+
     void cameraInfoCallback(const sensor_msgs::msg::CameraInfo::SharedPtr msg) {
         //# Camera intrinsic parameters (example values)
         //# Intrinsic camera matrix for the raw (distorted) images.
@@ -40,7 +43,7 @@ public:
     }
 
     void
-    ParticleFilterNod::publish_particles(
+    publish_particles(
             const std::vector<Particle> &particles) {       // Create a marker array message
         auto markerArrayMsg = std::make_shared<visualization_msgs::msg::MarkerArray>();
         // Populate the marker array with markers
@@ -73,7 +76,8 @@ public:
         // Publish the marker array
         publisher_->publish(*markerArrayMsg);
 
-    };
+    }
+};
 
 
 //    Rotation Matrix:
@@ -87,12 +91,11 @@ public:
 //
 //    Eigen::Matrix3d rotationMatrix = (rotation_z * rotation_y * rotation_x).toRotationMatrix();
 
-}
 
-int main(int argc, char **argv) {
-    rclcpp::init(argc, argv);
-    auto node = std::make_shared<ParticleFilterNode>();
-    rclcpp::spin(node);
-    rclcpp::shutdown();
-    return 0;
-}
+    int main(int argc, char **argv) {
+        rclcpp::init(argc, argv);
+        auto node = std::make_shared<ParticleFilterNode>();
+        rclcpp::spin(node);
+        rclcpp::shutdown();
+        return 0;
+    }
