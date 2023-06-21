@@ -20,6 +20,13 @@ struct Particle {
     double weight;
 };
 
+struct LandmarkObs {
+
+    int id;              // Id of matching landmark. landmark in our case is the joint we are sarting with on ebut later will include all joints
+    double x;            // x position of landmark (joint) in camera coordinates
+    double y;            // y position of landmark (joint) in camera coordinates
+}; // going to be 1x2 for now (left shoulder joint)
+
 /*
      * Computes the Euclidean distance between two 2D points.
      * @param (x1,y1) x and y coordinates of first point
@@ -30,7 +37,7 @@ inline double dist(double x1, double y1, double x2, double y2) {
     return sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
 }
 
-class ParticleFilter{
+class ParticleFilter {
 private:
     // Number of particles to draw
     int num_particles;
@@ -46,17 +53,23 @@ private:
 
 
 
+
+
 public:
     // Constructor
-    ParticleFilter(int num): num_particles(num), is_initialized(false) {}
+    ParticleFilter(int num) : num_particles(num), is_initialized(false) {}
 
     // Destructor
     ~ParticleFilter() {}
 
-    void init(std::pair<double, double>  x, std::pair<double, double>  y, std::pair<double, double>  z, std::pair<double, double>  theta);
-    void motion_model(double delta_t, std::array<double,4> std_pos, double velocity, double yaw_rate);
+    void init(std::pair<double, double> x, std::pair<double, double> y, std::pair<double, double> z,
+              std::pair<double, double> theta);
+
+    void motion_model(double delta_t, std::array<double, 4> std_pos, double velocity, double yaw_rate);
+
 //    void updateWeights(double sensor_range, double std_landmark[], std::vector<LandmarkObs> observations ); TODO
     void resample();
+
     void publish_particles(const std::vector<Particle> &particles);
 
     /**
@@ -65,8 +78,8 @@ public:
     const bool initialized() const {
         return is_initialized;
     }
-    void enforce_non_collision(const std::vector<Particle> &part);
 
+    void enforce_non_collision(const std::vector<Particle> &part);
 
 
 };
