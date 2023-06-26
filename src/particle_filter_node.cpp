@@ -10,7 +10,20 @@
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <iostream>
 #include <Eigen/Dense>
+#include <fstream>
+#include <nlohmann/json.hpp>
 
+
+struct TransformData {
+    double posX;
+    double posY;
+    double posZ;
+    double quatX;
+    double quatY;
+    double quatZ;
+    double quatW;
+    std::string name;
+};
 
 class ParticleFilterNode : public rclcpp::Node {
 private:
@@ -77,25 +90,88 @@ public:
         publisher_->publish(*markerArrayMsg);
 
     }
+
+    // reads from json file quaternion and position of the camera and outputs extrinsic parameters
+    std::vector<Eigen::MatrixXd> Extrinsic() {
+
+        // Read the JSON data from a file
+        std::string filePath = "/home/ola/Desktop/transformDataList.json";
+        std::ifstream file(filePath);
+
+        // Check if the file was opened successfully
+//        if (!file) {
+//            std::cerr << "Failed to open the file: " << filePath << std::endl;
+//            return 1;
+//        }
+
+        nlohmann::json jsonData;
+
+        file >> jsonData;
+        file.close();
+
+        // Parse the JSON data and save it as a list of TransformData
+        std::vector<TransformData> transformList;
+        for (const auto &entry: jsonData) {
+            TransformData transform;
+            transform.posX = entry["posX"];
+            transform.posY = entry["posY"];
+            transform.posZ = entry["posZ"];
+            transform.quatX = entry["quatX"];
+            transform.quatY = entry["quatY"];
+            transform.quatZ = entry["quatZ"];
+            transform.quatW = entry["quatW"];
+            transform.name = entry["name"];
+            transformList.push_back(transform);
+        }
+
+        std::vector<Eigen::MatrixXd> extrinsiclist;
+        for (const auto &data: transformList) {
+            // Extract the values from data
+            double q1 = data.quatX;
+            double q2 = data.quatY;
+            double q3 = data.quatZ;
+            double q0 = data.quatW;
+
+            Eigen::MatrixXd r(4, 4);
+
+            //            a nicer way to fill r matrix
+            //            d1<< current_obs.d20, current_obs.d21, current_obs.d22, current_obs.d23, current_obs.d24,
+            //                    current_obs.d25, current_obs.d26, current_obs.d27, current_obs.d28 ,current_obs.d29;
+            //First row of the transformation matrix
+            r(0, 0) = 2 * (q0 * q0 + q1 * q1) - 1;
+            r(0, 1) = 2 * (q1 * q2 - q0 * q3);
+            r(0, 2) = 2 * (q1 * q3 + q0 * q2);
+            r(0, 3) = data.posX;
+
+            // Second row of the transformation matrix
+            r(1, 0) = 2 * (q1 * q2 + q0 * q3);
+            r(1, 1) = 2 * (q0 * q0 + q2 * q2) - 1;
+            r(1, 2) = 2 * (q2 * q3 - q0 * q1);
+            r(1, 3) = data.posY;
+
+            // Third row of the transformation matrix
+            r(2, 0) = 2 * (q1 * q3 - q0 * q2);
+            r(2, 1) = 2 * (q2 * q3 + q0 * q1);
+            r(2, 2) = 2 * (q0 * q0 + q3 * q3) - 1;
+            r(2, 3) = data.posZ;
+
+            r(3, 0) = 0;
+            r(3, 1) = 0;
+            r(3, 2) = 0;
+            r(3, 3) = 1;
+            std::cout << r << std::endl;
+            extrinsiclist.push_back(r);
+
+        }
+
+        return extrinsiclist;
+    }
 };
 
-
-//    Rotation Matrix:
-//            Convert the XYZ rotation values from Unity into a rotation matrix that represents the camera's orientation in the world coordinate system. The conversion depends on the rotation order and conventions used by Unity. Common rotation order conventions are XYZ, YXZ, ZYX, etc. You need to determine the specific order used in Unity.
-//
-//    For example, if the rotation order is XYZ, you can create the rotation matrix as follows:
-//    Eigen::
-//    Eigen::AngleAxisd rotation_x(rotation_x_value, Eigen::Vector3d::UnitX());
-//    Eigen::AngleAxisd rotation_y(rotation_y_value, Eigen::Vector3d::UnitY());
-//    Eigen::AngleAxisd rotation_z(rotation_z_value, Eigen::Vector3d::UnitZ());
-//
-//    Eigen::Matrix3d rotationMatrix = (rotation_z * rotation_y * rotation_x).toRotationMatrix();
-
-
-    int main(int argc, char **argv) {
-        rclcpp::init(argc, argv);
-        auto node = std::make_shared<ParticleFilterNode>();
-        rclcpp::spin(node);
-        rclcpp::shutdown();
-        return 0;
-    }
+int main(int argc, char **argv) {
+    rclcpp::init(argc, argv);
+    auto node = std::make_shared<ParticleFilterNode>();
+    rclcpp::spin(node);
+    rclcpp::shutdown();
+    return 0;
+}
