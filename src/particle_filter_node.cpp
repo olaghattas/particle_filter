@@ -161,9 +161,7 @@ public:
             r(3, 3) = 1;
             std::cout << r << std::endl;
             extrinsiclist.push_back(r);
-
         }
-
         return extrinsiclist;
     }
 };

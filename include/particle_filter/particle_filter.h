@@ -9,9 +9,12 @@
 #include <vector>
 #include <array>
 //
+#include <cuda_fp16.h>
+#include "tiny-cuda-nn/cpp_api.h"
+#include <collision/datapoint.hpp>
+#include <filesystem>
 
 struct Particle {
-
     int id;
     double x;
     double y;
@@ -20,11 +23,65 @@ struct Particle {
     double weight;
 };
 
+//struct GPUData {
+//    GPUData(std::vector<float> data, int dim) {
+//        size_ = data.size();
+//        stride_ = 1;
+//        dim_ = dim;
+//        cudaMalloc(&data_gpu_, size_ * sizeof(float));
+//        cudaMemcpy(data_gpu_, data.data(), size_ * sizeof(float), cudaMemcpyHostToDevice);
+//
+//        std::srand(static_cast<unsigned>(std::time(nullptr)));
+//    }
+//
+//    GPUData(int size, int dim) {
+//        size_ = size;
+//        stride_ = 1;
+//        dim_ = dim;
+//        cudaMalloc(&data_gpu_, size_ * sizeof(float));
+//    }
+//
+//    ~GPUData() {
+//        cudaFree(data_gpu_);
+//    }
+//
+//    int sampleInd(int num_elements) {
+//        assert(size_ / dim_ - num_elements >= 0);
+//        int offset = (std::rand() % (1 + size_ / dim_ - num_elements));
+//        return offset;
+//    }
+//
+//    float *sample(int offset) {
+//        return (float *) (data_gpu_ + offset * dim_);
+//    }
+//
+//    std::vector<float> toCPU() {
+//        std::vector<float> out(size_ / stride_);
+//        if (stride_ == 1) {
+//            cudaMemcpy(out.data(), data_gpu_, size_ * sizeof(float), cudaMemcpyDeviceToHost);
+//        } else {
+//            std::vector<float> buf(size_);
+//            cudaMemcpy(buf.data(), data_gpu_, size_ * sizeof(float), cudaMemcpyDeviceToHost);
+//            for (int i = 0; i < size_ / stride_; i++) {
+//                out[i] = buf[stride_ * i];
+//            }
+//        }
+//
+//        return out;
+//    }
+//
+//    float *data_gpu_;
+//    int size_;
+//    int dim_;
+//    int stride_;
+//};
+
 struct LandmarkObs {
 
-    int id;              // Id of matching landmark. landmark in our case is the joint we are sarting with on ebut later will include all joints
-    double x;            // x position of landmark (joint) in camera coordinates
-    double y;            // y position of landmark (joint) in camera coordinates
+    int id;        // Id of matching landmark. landmark in our case is the joint we are sarting with on ebut later will include all joints
+    double x;      // x position of landmark (joint) in camera coordinates
+    double y;      // y position of landmark (joint) in camera coordinates
+    double z;      // z position of landmark (joint) in camera coordinates
 }; // going to be 1x2 for now (left shoulder joint)
 
 /*
@@ -36,7 +93,6 @@ struct LandmarkObs {
 inline double dist(double x1, double y1, double x2, double y2) {
     return sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
 }
-
 
 
 class ParticleFilter {
@@ -52,10 +108,6 @@ private:
 
     // Set of current particles
     std::vector<Particle> particles;
-
-
-
-
 
 public:
     // Constructor
@@ -83,8 +135,12 @@ public:
 
     void enforce_non_collision(const std::vector<Particle> &part);
 
+    void predict(cudaStream_t const *stream_ptr, tcnn::cpp::Module *network,
+                 float *params, const GPUData &inputs, GPUData &output);
+
 
 };
+
 
 
 #endif //SMART_HOME_PARTICLE_FILTER_H
