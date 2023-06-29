@@ -13,7 +13,7 @@
 #include <memory>
 #include <string>
 #include <cmath>
-#include <Eigen/Dense>
+
 
 #define EPSILON 1e-4
 
@@ -27,15 +27,15 @@ void ParticleFilter::init(std::pair<double, double> x_bound, std::pair<double, d
     // NOTE: Consult particle_filter.h for more information about this method (and others in this file).
 
     std::default_random_engine gen;
-    std::normal_distribution<double> xNoise(x_bound.first, x_bound.second);
+    std::uniform_real_distribution<double> xNoise(x_bound.first, x_bound.second);
     std::uniform_real_distribution<double> yNoise(y_bound.first, y_bound.second);
     std::uniform_real_distribution<double> zNoise(z_bound.first, z_bound.second);
-    std::normal_distribution<double> yawNoise(theta_bound.first, theta_bound.second);
+    std::uniform_real_distribution<double> yawNoise(theta_bound.first, theta_bound.second);
 
     particles.clear();
     weights.clear();
     for (int i = 0; i < num_particles; ++i) {
-        Particle p = {i, xNoise(gen), yNoise(gen), yawNoise(gen), 1};
+        Particle p = {i, xNoise(gen), yNoise(gen),zNoise(gen),  yawNoise(gen), 1.0};
         particles.push_back(p);
         weights.push_back(1);
     }
@@ -103,50 +103,44 @@ void ParticleFilter::resample() {
 }
 
 void ParticleFilter::updateWeights(double std_landmark[],
-                                   std::vector<LandmarkObs> observations) {
+                                   std::vector<LandmarkObs> observations,  const Eigen::Matrix3d intrinsicParams,  const Eigen::Matrix4d extrinsicParams) {
     // Update the weights of each particle using a multi-variate Gaussian distribution. You can read
-    //   more about this distribution here: https://en.wikipedia.org/wiki/Multivariate_normal_distribution
-    // NOTE: The observations are given in the VEHICLE'S coordinate system. Your particles are located
-    //   according to the MAP'S coordinate system. You will need to transform between the two systems.
-    //   Keep in mind that this transformation requires both rotation AND translation (but no scaling).
-    //   The following is a good resource for the theory:
-    //   https://www.willamette.edu/~gorr/classes/GeneralGraphics/Transforms/transforms2d.htm
-    //   and the following is a good resource for the actual equation to implement (look at equation
-    //   3.33. Note that you'll need to switch the minus sign in that equation to a plus to account
-    //   for the fact that the map's y-axis actually points downwards.)
-    //   http://planning.cs.uiuc.edu/node99.html
 
-    double std_x = std_landmark[0];
-    double std_y = std_landmark[1];
+    double sigma_x = std_landmark[0];
+    double sigma_y = std_landmark[1];
     double weights_sum = 0;
 
     // loop through each of the particle to update
     for(int i = 0; i < num_particles; ++i){
         Particle *p = &particles[i];
-        double wt = 1.0;
+        double weight = 1.0;
 
         // project 3d point to pixels for now the size of observations will be one cause we are only tracking one joint which is the right shoulder
         // later we can add a kalman filter and use all the joints to predict the location of the person
-        for(int j=0; j<observations.size(); ++j) {
-            LandmarkObs current_obs = observations[j] // in pixels in the image plane
-        }
+//        for(int j=0; j<observations.size(); ++j) {
+//            LandmarkObs current_obs = observations[j]; // in pixels in the image plane
+//        }
+        LandmarkObs current_obs = observations[0]; // TODO be changed when more observations are added
+        Eigen::Vector4d particle;
+        particle << p->x, p->y, p->z, 1;
+        // projected particles to image plane
 
-
+        Eigen::Vector2d predicted_particles =  projectParticlesto2D(particle, intrinsicParams,extrinsicParams);
 
         // update weights using Multivariate Gaussian Distribution
         // equation given in Transformations and Associations Quiz
-        double gaussian = ((x - mu_x) * (x - mu_x) / (2 * sigma_x * sigma_x)) +
-                              ((y - mu_y) * (y - mu_y) / (2 * sigma_y * sigma_y));
-        double num = exp(-0.5 * (pow((transformed_obs.x - landmark.x_f), 2) / pow(std_x, 2) + pow((transformed_obs.y - landmark.y_f), 2) / pow(std_y, 2)));
+        double gaussian = ((predicted_particles[0] - current_obs.x) * (predicted_particles[0] - current_obs.x) / (2 * sigma_x * sigma_x)) +
+                              ((predicted_particles[1] - current_obs.y) * (predicted_particles[1] - current_obs.y) / (2 * sigma_x * sigma_y));
         double gaussian_factor = 1 / (2 * M_PI * sigma_x * sigma_y);
         gaussian = exp(-gaussian);
         gaussian = gaussian * gaussian_factor;
 
-        weight = weight * gaussian;
+        weight *= gaussian;
+        weights_sum += weight;
+        p->weight = weight;
         }
-        weights_sum += wt;
-        p->weight = wt;
-    }
+
+
     // normalize weights to bring them in (0, 1]
     for (int i = 0; i < num_particles; i++) {
         Particle *p = &particles[i];
@@ -154,19 +148,29 @@ void ParticleFilter::updateWeights(double std_landmark[],
         weights[i] = p->weight;
     }
 }
-// Function to perform the projection
-std::vector<Eigen::Vector2d> projectParticlesto2D(const std::vector<Particle> &particles, const Eigen::Matrix3d &cameraMatrix)
-{   std::vector<Eigen::Vector2d> projectedPoints;
-    projectedPoints.reserve(particles.size());
 
-    for (const auto& particle : particles) {
-        Eigen::Vector2d point2D;
-        point2D << (cameraMatrix(0, 0) * particle.x + cameraMatrix(0, 1) * particle.y + cameraMatrix(0, 2) * particle.z) / (cameraMatrix(2, 0) * particle.x + cameraMatrix(2, 1) * particle.y + cameraMatrix(2, 2) * particle.z),
-                (cameraMatrix(1, 0) * particle.x + cameraMatrix(1, 1) * particle.y + cameraMatrix(1, 2) * particle.z) / (cameraMatrix(2, 0) * particle.x + cameraMatrix(2, 1) * particle.y + cameraMatrix(2, 2) * particle.z);
-        projectedPoints.push_back(point2D);
-    }
-    return projectedPoints;
+
+Eigen::Vector2d projectParticlesto2D(const Eigen::Vector4d& particle, const Eigen::Matrix3d& intrinsicParams, const Eigen::Matrix4d& extrinsicParams)
+{
+    Eigen::MatrixXd modifiedIntrinsicParams(3, 4);
+    modifiedIntrinsicParams << intrinsicParams(0, 0), intrinsicParams(0, 1), intrinsicParams(0, 2), 0.0,
+            intrinsicParams(1, 0), intrinsicParams(1, 1), intrinsicParams(1, 2), 0.0,
+            intrinsicParams(2, 0), intrinsicParams(2, 1), intrinsicParams(2, 2), 0.0;
+
+// Define the composite transformation matrix
+    Eigen::Matrix<double, 4, 4> compositeMatrix = modifiedIntrinsicParams.matrix() * extrinsicParams;
+
+
+    // Multiply the homogeneous 3D point with the matrix to get the projected 2D point
+    Eigen::Vector4d projected_homog_point = compositeMatrix * particle;
+
+    // Store the resulting 2D point in an Eigen::Vector2d object
+    Eigen::Vector2d projectedPoint(projected_homog_point(0) / projected_homog_point(3), projected_homog_point(1) / projected_homog_point(3));
+
+    return projectedPoint;
 }
+
+
 
 //void enforce_non_collision(const std::vector<Particle> &part){
 //    auto network = trainable_model->get_network();

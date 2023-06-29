@@ -14,12 +14,18 @@
   <depend>visualization_msgs</depend>
   <depend>rclcpp_components</depend>
   <depend>rclcpp</depend>
+  <depend>colmap_srv</depend>
+  <depend>cv_bridge</depend>
+  <depend>detection_msgs</depend>
 
   <build_depend>sensor_msgs</build_depend>
   <buildtool_depend>ros2-tiny-cuda-nn</buildtool_depend>
   <buildtool_depend>collision</buildtool_depend>
+  <buildtool_depend>colmap_srv</buildtool_depend>
+  <buildtool_depend>detection_msgs</buildtool_depend>
 
   <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
   <!-- Properly handle Eigen3 includes -->
   <buildtool_depend>eigen3_cmake_module</buildtool_depend>
   <build_depend>eigen</build_depend>

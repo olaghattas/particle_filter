@@ -17,10 +17,14 @@ find_package(eigen3_cmake_module REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(collision REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
 find_package(fcl REQUIRED)
 find_package(CUDA REQUIRED)
 find_package(ros2-tiny-cuda-nn REQUIRED)
 find_package(ament_index_cpp REQUIRED)
+find_package(colmap_srv REQUIRED)
+find_package(cv_bridge REQUIRED)
+find_package(detection_msgs REQUIRED)
 
 set(dependencies1
         rclcpp
@@ -29,6 +33,9 @@ set(dependencies1
         Eigen3
         sensor_msgs
         ament_index_cpp
+        geometry_msgs
+        cv_bridge
+        detection_msgs
         )
 
 # Add executable
@@ -48,6 +55,8 @@ target_include_directories(particle_filter PUBLIC
 add_executable(particle_filter_node src/particle_filter_node.cpp)
 ament_target_dependencies(particle_filter_node ${dependencies1})
 target_link_libraries(particle_filter_node particle_filter)
+ament_target_dependencies(particle_filter_node colmap_srv)
+ament_target_dependencies(particle_filter_node ros2-tiny-cuda-nn)
 target_link_libraries(particle_filter_node ${collision_LIBRARIES})
 target_link_libraries(particle_filter_node ${ros2-tiny-cuda-nn_LIBRARIES})
 

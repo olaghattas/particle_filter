@@ -13,6 +13,7 @@
 #include "tiny-cuda-nn/cpp_api.h"
 #include <collision/datapoint.hpp>
 #include <filesystem>
+#include <Eigen/Dense>
 
 struct Particle {
     int id;
@@ -78,10 +79,9 @@ struct Particle {
 
 struct LandmarkObs {
 
-    int id;        // Id of matching landmark. landmark in our case is the joint we are sarting with on ebut later will include all joints
+    std::string name;        // Id of matching landmark. landmark in our case is the joint we are sarting with on ebut later will include all joints
     double x;      // x position of landmark (joint) in camera coordinates
     double y;      // y position of landmark (joint) in camera coordinates
-    double z;      // z position of landmark (joint) in camera coordinates
 }; // going to be 1x2 for now (left shoulder joint)
 
 /*
@@ -121,7 +121,10 @@ public:
 
     void motion_model(double delta_t, std::array<double, 4> std_pos, double velocity, double yaw_rate);
 
-//    void updateWeights(double sensor_range, double std_landmark[], std::vector<LandmarkObs> observations ); TODO
+    void updateWeights(double std_landmark[],
+                       std::vector<LandmarkObs> observations, const Eigen::Matrix3d intrinsicParams,
+                       const Eigen::Matrix4d extrinsicParams);
+
     void resample();
 
     void publish_particles(const std::vector<Particle> &particles);
@@ -135,12 +138,14 @@ public:
 
     void enforce_non_collision(const std::vector<Particle> &part);
 
-    void predict(cudaStream_t const *stream_ptr, tcnn::cpp::Module *network,
-                 float *params, const GPUData &inputs, GPUData &output);
+    Eigen::Vector2d projectParticlesto2D(const Eigen::Vector4d &particle, const Eigen::Matrix3d &intrinsicParams,
+                                         const Eigen::Matrix4d &extrinsicParams);
+
+//    void predict(cudaStream_t const *stream_ptr, tcnn::cpp::Module *network,
+//                 float *params, const GPUData &inputs, GPUData &output);
 
 
 };
-
 
 
 #endif //SMART_HOME_PARTICLE_FILTER_H
