@@ -11,7 +11,10 @@
 //
 #include <cuda_fp16.h>
 #include "tiny-cuda-nn/cpp_api.h"
-#include <collision/datapoint.hpp>
+#include <collision_lib/collision_lib.hpp>
+//#include <get_collision.cpp>
+//#include <collision/datapoint.hpp>
+//#include <collision/get_collision.hpp>
 #include <filesystem>
 #include <Eigen/Dense>
 
@@ -23,59 +26,6 @@ struct Particle {
     double theta;
     double weight;
 };
-
-//struct GPUData {
-//    GPUData(std::vector<float> data, int dim) {
-//        size_ = data.size();
-//        stride_ = 1;
-//        dim_ = dim;
-//        cudaMalloc(&data_gpu_, size_ * sizeof(float));
-//        cudaMemcpy(data_gpu_, data.data(), size_ * sizeof(float), cudaMemcpyHostToDevice);
-//
-//        std::srand(static_cast<unsigned>(std::time(nullptr)));
-//    }
-//
-//    GPUData(int size, int dim) {
-//        size_ = size;
-//        stride_ = 1;
-//        dim_ = dim;
-//        cudaMalloc(&data_gpu_, size_ * sizeof(float));
-//    }
-//
-//    ~GPUData() {
-//        cudaFree(data_gpu_);
-//    }
-//
-//    int sampleInd(int num_elements) {
-//        assert(size_ / dim_ - num_elements >= 0);
-//        int offset = (std::rand() % (1 + size_ / dim_ - num_elements));
-//        return offset;
-//    }
-//
-//    float *sample(int offset) {
-//        return (float *) (data_gpu_ + offset * dim_);
-//    }
-//
-//    std::vector<float> toCPU() {
-//        std::vector<float> out(size_ / stride_);
-//        if (stride_ == 1) {
-//            cudaMemcpy(out.data(), data_gpu_, size_ * sizeof(float), cudaMemcpyDeviceToHost);
-//        } else {
-//            std::vector<float> buf(size_);
-//            cudaMemcpy(buf.data(), data_gpu_, size_ * sizeof(float), cudaMemcpyDeviceToHost);
-//            for (int i = 0; i < size_ / stride_; i++) {
-//                out[i] = buf[stride_ * i];
-//            }
-//        }
-//
-//        return out;
-//    }
-//
-//    float *data_gpu_;
-//    int size_;
-//    int dim_;
-//    int stride_;
-//};
 
 struct LandmarkObs {
 
@@ -122,7 +72,7 @@ public:
     void motion_model(double delta_t, std::array<double, 4> std_pos, double velocity, double yaw_rate);
 
     void updateWeights(double std_landmark[],
-                       std::vector<LandmarkObs> observations, const Eigen::Matrix3d intrinsicParams,
+                       std::vector<LandmarkObs> observations, const Eigen::Matrix<double, 3, 3, Eigen::RowMajor> intrinsicParams,
                        const Eigen::Matrix4d extrinsicParams);
 
     void resample();
@@ -132,17 +82,16 @@ public:
     /**
 	 * initialized Returns whether particle filter is initialized yet or not.
 	 */
-    const bool initialized() const {
+    bool initialized() const {
         return is_initialized;
     }
 
-    void enforce_non_collision(const std::vector<Particle> &part);
+//    void enforce_non_collision(const std::vector<Particle> &part);
+
+    void enforce_non_collision(const std::vector<Particle> &old_particles, std::string directoryPath, bool door_close);
 
     Eigen::Vector2d projectParticlesto2D(const Eigen::Vector4d &particle, const Eigen::Matrix3d &intrinsicParams,
                                          const Eigen::Matrix4d &extrinsicParams);
-
-//    void predict(cudaStream_t const *stream_ptr, tcnn::cpp::Module *network,
-//                 float *params, const GPUData &inputs, GPUData &output);
 
 
 };

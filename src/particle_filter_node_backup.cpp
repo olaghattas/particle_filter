@@ -1,17 +1,11 @@
 //
 // Created by ola on 6/15/23.
 //
-
-#include <chrono>
-#include <functional>
-#include <memory>
-#include <string>
-
 #include "particle_filter.cpp"
 #include "visualization_msgs/msg/marker.hpp"
 #include "visualization_msgs/msg/marker_array.hpp"
 #include "rclcpp/rclcpp.hpp"
-
+#include <chrono>
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <geometry_msgs/msg/point.hpp>
@@ -25,10 +19,6 @@
 #include <fstream>
 #include <nlohmann/json.hpp>
 #include <cv_bridge/cv_bridge.h>
-
-#include "tf2_ros/transform_listener.h"
-#include "tf2_ros/buffer.h"
-#include "tf2/exceptions.h"
 
 #include <random>
 #include <map>
@@ -57,15 +47,11 @@ class ParticleFilterNode : public rclcpp::Node {
 private:
 
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr publisher_;
-//    rclcpp::TimerBase::SharedPtr timer_;
-    std::map<std::string, geometry_msgs::msg::Transform> cameraextrinsics;
+    rclcpp::TimerBase::SharedPtr timer_;
     Eigen::Matrix<double, 3, 3, Eigen::RowMajor> cameraMatrix;
     Eigen::Matrix<double, 3, 4, Eigen::RowMajor> cameraProjectionMatrix;
     LandmarkObs observation; // Member variable to store the observation
 
-    rclcpp::TimerBase::SharedPtr timer_{nullptr};
-    std::shared_ptr<tf2_ros::TransformListener> tf_listener_{nullptr};
-    std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
 
 
 public:
@@ -73,62 +59,11 @@ public:
 
         publisher_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("marker", 10);
 
-        tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
-        tf_listener_ =
-                std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
-
         // subscribe to point coordinate info to get intrinsic parameters
 //        auto pose_sub = create_subscription<detection_msgs::msg::PoseMsg>(
 //                "/coord_shoulder_joint_in_px", 1,
 //                [this](const detection_msgs::msg::PoseMsg::SharedPtr msg) { PosePixCallback(msg); });
 
-        auto cameraInfoSub = create_subscription<sensor_msgs::msg::CameraInfo>(
-                "/camera/color/camera_info", 1,
-                [this](const sensor_msgs::msg::CameraInfo::SharedPtr msg) { cameraInfoCallback(msg); });
-
-        bool sim = true;
-        // to decide, from unity i have to subscribe to tf2, thinkng of kepng it the same or getiting extrininsc directly form checkerboard.
-        if (!sim) {
-            auto dining_camera_sub = create_subscription<sensor_msgs::msg::Image>(
-                    "/camera_dining_room/color/image_raw", 1,
-                    [this](const sensor_msgs::msg::Image::SharedPtr msg) {
-                        geometry_msgs::msg::Transform result_dining = get_extrinisics(msg);
-                        std::string dine = "dining";
-                        cameraextrinsics.insert(std::make_pair(dine, result_dining));
-                    });
-
-            auto living_camera_sub = create_subscription<sensor_msgs::msg::Image>(
-                    "/camera_living_room/color/image_raw", 1,
-                    [this](const sensor_msgs::msg::Image::SharedPtr msg) {
-                        geometry_msgs::msg::Transform result_living = get_extrinisics(msg);
-                        std::string living = "living";
-                        cameraextrinsics.insert(std::make_pair(living, result_living));
-                    });
-
-            auto bedroom_camera_sub = create_subscription<sensor_msgs::msg::Image>(
-                    "/camera_bedroom/color/image_raw", 1,
-                    [this](const sensor_msgs::msg::Image::SharedPtr msg) {
-                        geometry_msgs::msg::Transform result_bedroom = get_extrinisics(msg);
-                        std::string bedroom = "bedroom";
-                        cameraextrinsics.insert(std::make_pair(bedroom, result_bedroom));
-                    });
-
-            auto kitchen_camera_sub = create_subscription<sensor_msgs::msg::Image>(
-                    "/camera_kitchen/color/image_raw", 1,
-                    [this](const sensor_msgs::msg::Image::SharedPtr msg) {
-                        geometry_msgs::msg::Transform result_kitchen = get_extrinisics(msg);
-                        std::string kitchen = "kitchen";
-                        cameraextrinsics.insert(std::make_pair(kitchen, result_kitchen));
-                    });
-        }
-        if (sim) {
-            // Call on_timer function every second
-            timer_ = this->create_wall_timer(std::chrono::seconds(1), std::bind(&ParticleFilterNode::tfCallback, this));
-//            using namespace std::chrono_literals;
-            //            timer_ = this->create_wall_timer(1s, std::bind(&ParticleFilterNode::tfCallback, this));
-
-
-        }
     }
 
     LandmarkObs getObservation() const {
@@ -177,16 +112,19 @@ public:
 
     }
 
-    void cameraInfoCallback(const sensor_msgs::msg::CameraInfo::SharedPtr &msg) {
+    Eigen::Matrix<double, 3, 3, Eigen::RowMajor>
+    cameraInfoCallback(const sensor_msgs::msg::CameraInfo::SharedPtr &msg) {
         // Access camera matrix values
         Eigen::Map<const Eigen::Matrix<double, 3, 3, Eigen::RowMajor>> K(msg->k.data());
         cameraMatrix = K;
+
         // Access camera projection matrix values might be used later
 //        Eigen::Map<const Eigen::Matrix<double, 3, 4, Eigen::RowMajor>> P(msg->p.data());
 //        cameraProjectionMatrix = P;
+        return cameraMatrix;
     }
 
-    geometry_msgs::msg::Transform get_extrinisics(const sensor_msgs::msg::Image::SharedPtr msg) {
+    geometry_msgs::msg::Transform get_extrinisics (const sensor_msgs::msg::Image::SharedPtr msg){
         geometry_msgs::msg::Transform cam_ext;
         geometry_msgs::msg::Vector3 translation;
         translation.x = 1.0;
@@ -202,44 +140,53 @@ public:
         return cam_ext;
     }
 
-    void tfCallback() {
-        std::string toFrame = "odom";
-        std::vector<std::string> fromFrames = {"tapo_camera_kitchen", "tapo_camera_dining", "tapo_camera_bedroom", "tapo_camera_living"};
+    geometry_msgs::msg::Transform get_pose_from_transform(const geometry_msgs::msg::TransformStamped::SharedPtr &msg){
+        geometry_msgs::msg::Transform cam_ext;
+        geometry_msgs::msg::Vector3 translation;
+        cam_ext.translation = msg->transform.translation;
+        geometry_msgs::msg::Quaternion rotation;
+        cam_ext.rotation = msg->transform.rotation;
+        return cam_ext;
+    }
 
-        for (auto &fromFrame: fromFrames) {
-            try {
-                geometry_msgs::msg::TransformStamped t = tf_buffer_->lookupTransform(
-                        toFrame, fromFrame,
-                        tf2::TimePointZero);
+    std::map<std::string, geometry_msgs::msg::Transform> tfCallback(const geometry_msgs::msg::TransformStamped::SharedPtr msg)
+    {
+        std::map<std::string, geometry_msgs::msg::Transform> cameraextrinsics;
+        // Check the child_frame_id
+        std::string child_frame_id = msg->child_frame_id;
+        if (child_frame_id == "tapo_camera_kitchen")
+        {
+            // Perform your desired actions here
+            geometry_msgs::msg::Transform result_kitchen = get_pose_from_transform(msg);
+            std::string kitchen = "kitchen";
+            cameraextrinsics.insert(std::make_pair(kitchen, result_kitchen));
 
-                geometry_msgs::msg::Transform transform_ = t.transform;
-
-                std::string cam_loc;
-                size_t lastSpace = fromFrame.find_last_of(' ');
-                if (lastSpace != std::string::npos) {
-                    cam_loc = fromFrame.substr(lastSpace + 1);
-                } else {
-                    cam_loc = fromFrame;
-                }
-                cameraextrinsics.insert(std::make_pair(cam_loc, transform_));
-
-            } catch (const tf2::TransformException &ex) {
-                RCLCPP_INFO(
-                        this->get_logger(), "Could not transform %s to %s: %s",
-                        toFrame.c_str(), fromFrame.c_str(), ex.what());
-                return;
-            }
         }
-    }
+        if (child_frame_id == "tapo_camera_dining")
+        {
+            // Perform your desired actions here
+            geometry_msgs::msg::Transform result_dining = get_pose_from_transform(msg);
+            std::string dine = "dining";
+            cameraextrinsics.insert(std::make_pair(dine, result_dining));
 
+        }
+        if (child_frame_id == "tapo_camera_bedroom")
+        {
+            // Perform your desired actions here
+            geometry_msgs::msg::Transform result_bedroom = get_pose_from_transform(msg);
+            std::string bedroom = "bedroom";
+            cameraextrinsics.insert(std::make_pair(bedroom, result_bedroom));
 
-    Eigen::Matrix<double, 3, 3, Eigen::RowMajor> get_cam_intrinsic_matrix() {
-        return cameraMatrix;
-    }
+        }
+        if (child_frame_id == "tapo_camera_living")
+        {
+            // Perform your desired actions here
+            geometry_msgs::msg::Transform result_living = get_pose_from_transform(msg);
+            std::string living = "living";
+            cameraextrinsics.insert(std::make_pair(living, result_living));
 
-    std::map<std::string, geometry_msgs::msg::Transform> get_cam_extrinsic_matrix() {
+        }
         return cameraextrinsics;
-
     }
 
 };
@@ -248,26 +195,64 @@ public:
 int main(int argc, char **argv) {
     rclcpp::init(argc, argv);
     auto node = std::make_shared<ParticleFilterNode>();
-    std::map<std::string, geometry_msgs::msg::Transform> cameraextrinsics;
+    std::map<std::string, geometry_msgs::msg::Transform> cameraextrinsics_;
     Eigen::Matrix<double, 3, 3, Eigen::RowMajor> cameraMatrix;
 
     // subscribe to camera info to get intrinsic parameters and save them in a map
+    auto cameraInfoSub = node->create_subscription<sensor_msgs::msg::CameraInfo>(
+            "/camera/color/camera_info", 1,
+            [node, &cameraMatrix](const sensor_msgs::msg::CameraInfo::SharedPtr msg) {
+                cameraMatrix = node->cameraInfoCallback(msg);
+            });
 
+    bool sim = true ;
+    // to decide, from unity i have to subscribe to tf2, thinkng of kepng it the same or getiting extrininsc directly form checkerboard.
+    if (!sim) {
+        auto dining_camera_sub = node->create_subscription<sensor_msgs::msg::Image>(
+                "/camera_dining_room/color/image_raw", 1,
+                [node, &cameraextrinsics_](const sensor_msgs::msg::Image::SharedPtr msg) {
+                    geometry_msgs::msg::Transform result_dining = node->get_extrinisics(msg);
+                    std::string dine = "dining";
+                    cameraextrinsics_.insert(std::make_pair(dine, result_dining));
+                });
 
+        auto living_camera_sub = node->create_subscription<sensor_msgs::msg::Image>(
+                "/camera_living_room/color/image_raw", 1,
+                [node, &cameraextrinsics_](const sensor_msgs::msg::Image::SharedPtr msg) {
+                    geometry_msgs::msg::Transform result_living = node->get_extrinisics(msg);
+                    std::string living = "living";
+                    cameraextrinsics_.insert(std::make_pair(living, result_living));
+                });
+
+        auto bedroom_camera_sub = node->create_subscription<sensor_msgs::msg::Image>(
+                "/camera_bedroom/color/image_raw", 1,
+                [node, &cameraextrinsics_](const sensor_msgs::msg::Image::SharedPtr msg) {
+                    geometry_msgs::msg::Transform result_bedroom = node->get_extrinisics(msg);
+                    std::string bedroom = "bedroom";
+                    cameraextrinsics_.insert(std::make_pair(bedroom, result_bedroom));
+                });
+
+        auto kitchen_camera_sub = node->create_subscription<sensor_msgs::msg::Image>(
+                "/camera_kitchen/color/image_raw", 1,
+                [node, &cameraextrinsics_](const sensor_msgs::msg::Image::SharedPtr msg) {
+                    geometry_msgs::msg::Transform result_kitchen = node->get_extrinisics(msg);
+                    std::string kitchen = "kitchen";
+                    cameraextrinsics_.insert(std::make_pair(kitchen, result_kitchen));
+                });
+    }
+    if (sim){
+
+        auto tf_subscriber_ = node->create_subscription<geometry_msgs::msg::TransformStamped>(
+                "/tf", 1, [node, &cameraextrinsics_](const geometry_msgs::msg::TransformStamped::SharedPtr msg) {
+            cameraextrinsics_ = node->tfCallback(msg);
+        });
+    }
     // Todo map observatiopn to camera and intrinsic extirinsics
     //    std::map<std::string, cv::Mat> cameraExtrinsics;
     //    cameraExtrinsics.insert(std::make_pair("dining", result_dining));
-    bool first_run = true;
-    while (rclcpp::ok()) {
-        if (cameraMatrix.size() == 0) {
-            cameraMatrix = node->get_cam_intrinsic_matrix();
-        }
-        if (cameraextrinsics.size() == 0) {
-            cameraextrinsics = node->get_cam_extrinsic_matrix();
-        }
-        if (cameraMatrix.size() == 0 && cameraextrinsics.size() == 0 && first_run) {
-            first_run = false;
-        } else {//    std::array<double, 4> sigma_pos = {0.3, 0.3, 0.3, 0.01};
+
+
+//    std::array<double, 4> sigma_pos = {0.3, 0.3, 0.3, 0.01};
 //    double sigma_landmark[2] = {0.3, 0.3};
 //
 //    // noise generation
@@ -346,12 +331,44 @@ int main(int argc, char **argv) {
 //        particle_filter.resample();
 //
 //
-//    }}
-        }
-        rclcpp::spin_some(node);
-    }
-
-//    rclcpp::spin(node);
+//    }
+    rclcpp::spin(node);
     rclcpp::shutdown();
     return 0;
 }
+
+//    void tfCallback(const tf2_msgs::msg::TFMessage::SharedPtr msg)
+//    {
+//        // Check the child_frame_id
+//        for (const auto& tf : msg->transforms) {
+//
+//            if (tf.child_frame_id == "tapo_camera_kitchen") {
+//                // Perform your desired actions here
+//                geometry_msgs::msg::Transform result_kitchen = tf.transform;
+//                std::string kitchen = "kitchen";
+//                cameraextrinsics.insert(std::make_pair(kitchen, result_kitchen));
+//
+//            }
+//            if (tf.child_frame_id == "tapo_camera_dining") {
+//                // Perform your desired actions here
+//                geometry_msgs::msg::Transform result_dining = tf.transform;
+//                std::string dine = "dining";
+//                cameraextrinsics.insert(std::make_pair(dine, result_dining));
+//
+//            }
+//            if (tf.child_frame_id == "tapo_camera_bedroom") {
+//                // Perform your desired actions here
+//                geometry_msgs::msg::Transform result_bedroom = tf.transform;
+//                std::string bedroom = "bedroom";
+//                cameraextrinsics.insert(std::make_pair(bedroom, result_bedroom));
+//
+//            }
+//            if (tf.child_frame_id == "tapo_camera_living") {
+//                // Perform your desired actions here
+//                geometry_msgs::msg::Transform result_living = tf.transform;
+//                std::string living = "living";
+//                cameraextrinsics.insert(std::make_pair(living, result_living));
+//
+//            }
+//        }
+//    }
