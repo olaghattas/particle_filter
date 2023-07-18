@@ -73,9 +73,10 @@ public:
 
         publisher_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("marker", 10);
 
-        tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
-        tf_listener_ =
-                std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+        tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
+
+
+        tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
         // subscribe to point coordinate info to get intrinsic parameters
 //        auto pose_sub = create_subscription<detection_msgs::msg::PoseMsg>(
@@ -87,7 +88,7 @@ public:
                 [this](const sensor_msgs::msg::CameraInfo::SharedPtr msg) { cameraInfoCallback(msg); });
 
         bool sim = true;
-        // to decide, from unity i have to subscribe to tf2, thinkng of kepng it the same or getiting extrininsc directly form checkerboard.
+        // to decide, from unity i have to subscribe to tf2, thinking of keeping it the same or getting extrinsic directly form checkerboard.
         if (!sim) {
             auto dining_camera_sub = create_subscription<sensor_msgs::msg::Image>(
                     "/camera_dining_room/color/image_raw", 1,
@@ -124,8 +125,7 @@ public:
         if (sim) {
             // Call on_timer function every second
             timer_ = this->create_wall_timer(std::chrono::seconds(1), std::bind(&ParticleFilterNode::tfCallback, this));
-//            using namespace std::chrono_literals;
-            //            timer_ = this->create_wall_timer(1s, std::bind(&ParticleFilterNode::tfCallback, this));
+
 
 
         }
@@ -203,14 +203,15 @@ public:
     }
 
     void tfCallback() {
-        std::string toFrame = "odom";
-        std::vector<std::string> fromFrames = {"tapo_camera_kitchen", "tapo_camera_dining", "tapo_camera_bedroom", "tapo_camera_living"};
+        std::string toFrame = "unity";
+        std::vector<std::string> fromFrames = {"tapo_camera_kitchen", "tapo_camera_dining", "tapo_camera_bedroom",
+                                               "tapo_camera_living"};
 
         for (auto &fromFrame: fromFrames) {
             try {
                 geometry_msgs::msg::TransformStamped t = tf_buffer_->lookupTransform(
                         toFrame, fromFrame,
-                        tf2::TimePointZero);
+                        tf2::TimePoint(),std::chrono::milliseconds(50));
 
                 geometry_msgs::msg::Transform transform_ = t.transform;
 
@@ -229,9 +230,9 @@ public:
                         toFrame.c_str(), fromFrame.c_str(), ex.what());
                 return;
             }
+
         }
     }
-
 
     Eigen::Matrix<double, 3, 3, Eigen::RowMajor> get_cam_intrinsic_matrix() {
         return cameraMatrix;
@@ -239,7 +240,6 @@ public:
 
     std::map<std::string, geometry_msgs::msg::Transform> get_cam_extrinsic_matrix() {
         return cameraextrinsics;
-
     }
 
 };
@@ -254,104 +254,106 @@ int main(int argc, char **argv) {
     // subscribe to camera info to get intrinsic parameters and save them in a map
 
 
-    // Todo map observatiopn to camera and intrinsic extirinsics
+    // Todo map observation to camera and intrinsic extirinsics
     //    std::map<std::string, cv::Mat> cameraExtrinsics;
     //    cameraExtrinsics.insert(std::make_pair("dining", result_dining));
     bool first_run = true;
     while (rclcpp::ok()) {
-        if (cameraMatrix.size() == 0) {
-            cameraMatrix = node->get_cam_intrinsic_matrix();
+        if (first_run){
+            if (cameraMatrix.size() == 0) {
+                cameraMatrix = node->get_cam_intrinsic_matrix();
+            }
+            if (cameraextrinsics.size() == 0) {
+                cameraextrinsics = node->get_cam_extrinsic_matrix();
+            }
+            if (cameraMatrix.size() != 0 && cameraextrinsics.size() != 0) {
+                first_run = false;
+            }
         }
-        if (cameraextrinsics.size() == 0) {
-            cameraextrinsics = node->get_cam_extrinsic_matrix();
-        }
-        if (cameraMatrix.size() == 0 && cameraextrinsics.size() == 0 && first_run) {
-            first_run = false;
-        } else {//    std::array<double, 4> sigma_pos = {0.3, 0.3, 0.3, 0.01};
-//    double sigma_landmark[2] = {0.3, 0.3};
-//
-//    // noise generation
-//    std::default_random_engine gen;
-//
-//    std::normal_distribution<double> N_obs_x(0, sigma_landmark[0]);
-//    std::normal_distribution<double> N_obs_y(0, sigma_landmark[1]);
-//
-//    double n_x, n_y;
-//
-//    // Define the bounds based on the house
-//    std::pair<double, double> x_bound = std::make_pair(0.0, 10.0);
-//    std::pair<double, double> y_bound = std::make_pair(0.0, 20.0);
-//    std::pair<double, double> z_bound = std::make_pair(0.0, 5.0);
-//    std::pair<double, double> theta_bound = std::make_pair(-180.0, 180.0);
-//
-//    int num_particles = 100;
-//
-//    double velocity = 1.0;
-//    double yaw_rate = 1.0;
-//    bool running = true;
-//
-//    ParticleFilter particle_filter(num_particles);
+        else {
+            std::array<double, 4> sigma_pos = {0.3, 0.3, 0.3, 0.01};
 
-//    while (running) {
-//        auto beg = std::chrono::high_resolution_clock::now();
-//        std::vector<LandmarkObs> observations;
-//
-//        LandmarkObs obs_ = node->getObservation();
-//
-//        // observation will always be from the same camera
-//        std::string cam_name = obs_.name;
-//        observations.push_back(obs_);
-//
-//
-//        if (!particle_filter.initialized()) {
-//
-//            // Initialize the particle filter in a uniform distribution
-//            particle_filter.init(x_bound, y_bound, z_bound, theta_bound);
-//        } else {
-//            // Predict the vehicle's next state (noiseless).
-//            auto end = std::chrono::high_resolution_clock::now();
-//            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - beg);
-//            double delta_t = duration.count() / 1000000.0;
-//            particle_filter.motion_model(delta_t, sigma_pos, velocity, yaw_rate);
-//
-//        }
-//        // simulate the addition of noise to noiseless observation data.
-//        std::vector<LandmarkObs> noisy_observations;
-//        LandmarkObs obs;
-//        // which is currently 1
-//        for (int j = 0; j < observations.size(); ++j) {
-//            n_x = N_obs_x(gen);
-//            n_y = N_obs_y(gen);
-//            obs = observations[j];
-//            obs.x = obs.x + n_x;
-//            obs.y = obs.y + n_y;
-//            noisy_observations.push_back(obs);
-//        }
-//
-//
-//
-//
-//        Eigen::Quaterniond quaternion(cameraextrinsics[cam_name].quaternion.w, cameraextrinsics[cam_name].quaternion.x,
-//                                      cameraextrinsics[cam_name].quaternion.y, cameraextrinsics[cam_name].quaternion.z);
-//        Eigen::Matrix3d rotationMatrix = quaternion.normalized().toRotationMatrix();
-//        Eigen::Vector3d translationVector(cameraextrinsics[cam_name].translation.x,
-//                                          cameraextrinsics[cam_name].translation.y,
-//                                          cameraextrinsics[cam_name].translation.z);
-//        Eigen::Matrix4d extrinsicmatrix;
-//        extrinsicmatrix.block<3, 3>(0, 0) = rotationMatrix;
-//        extrinsicmatrix.block<3, 1>(0, 3) = translationVector;
-//        extrinsicmatrix.row(3) << 0, 0, 0, 1;
-//        // Update the weights and resample
-//        particle_filter.updateWeights(sigma_landmark, noisy_observations, cameraMatrix, extrinsicmatrix);
-//        particle_filter.resample();
-//
-//
-//    }}
+            double sigma_landmark[2] = {0.3, 0.3};
+
+            // noise generation
+            std::default_random_engine gen;
+
+            std::normal_distribution<double> N_obs_x(0, sigma_landmark[0]);
+            std::normal_distribution<double> N_obs_y(0, sigma_landmark[1]);
+
+            double n_x, n_y;
+
+            // Define the bounds based on the house
+            std::pair<double, double> x_bound = std::make_pair(0.0, 10.0);
+            std::pair<double, double> y_bound = std::make_pair(0.0, 20.0);
+            std::pair<double, double> z_bound = std::make_pair(0.0, 5.0);
+            std::pair<double, double> theta_bound = std::make_pair(-180.0, 180.0);
+
+            int num_particles = 100;
+
+            double velocity = 1.0;
+            double yaw_rate = 1.0;
+            bool running = true;
+
+            ParticleFilter particle_filter(num_particles);
+
+            while (running) {
+                auto beg = std::chrono::high_resolution_clock::now();
+                std::vector<LandmarkObs> observations;
+
+                LandmarkObs obs_ = node->getObservation();
+
+                // observation will always be from the same camera
+                std::string cam_name = obs_.name;
+                observations.push_back(obs_);
+
+
+                if (!particle_filter.initialized()) {
+
+                    // Initialize the particle filter in a uniform distribution
+                    particle_filter.init(x_bound, y_bound, z_bound, theta_bound);
+                } else {
+                    // Predict the vehicle's next state (noiseless).
+                    auto end = std::chrono::high_resolution_clock::now();
+                    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - beg);
+                    double delta_t = duration.count() / 1000000.0;
+                    particle_filter.motion_model(delta_t, sigma_pos, velocity, yaw_rate);
+
+                }
+                // simulate the addition of noise to noiseless observation data.
+                std::vector<LandmarkObs> noisy_observations;
+                LandmarkObs obs;
+                // which is currently 1
+                for (int j = 0; j < observations.size(); ++j) {
+                    n_x = N_obs_x(gen);
+                    n_y = N_obs_y(gen);
+                    obs = observations[j];
+                    obs.x = obs.x + n_x;
+                    obs.y = obs.y + n_y;
+                    noisy_observations.push_back(obs);
+                }
+
+
+                Eigen::Quaterniond quaternion(cameraextrinsics[cam_name].rotation.w,
+                                              cameraextrinsics[cam_name].rotation.x,
+                                              cameraextrinsics[cam_name].rotation.y,
+                                              cameraextrinsics[cam_name].rotation.z);
+                Eigen::Matrix3d rotationMatrix = quaternion.normalized().toRotationMatrix();
+                Eigen::Vector3d translationVector(cameraextrinsics[cam_name].translation.x,
+                                                  cameraextrinsics[cam_name].translation.y,
+                                                  cameraextrinsics[cam_name].translation.z);
+                Eigen::Matrix4d extrinsicmatrix;
+                extrinsicmatrix.block<3, 3>(0, 0) = rotationMatrix;
+                extrinsicmatrix.block<3, 1>(0, 3) = translationVector;
+                extrinsicmatrix.row(3) << 0, 0, 0, 1;
+                // Update the weights and resample
+                particle_filter.updateWeights(sigma_landmark, noisy_observations, cameraMatrix, extrinsicmatrix);
+                particle_filter.resample();
+            }
         }
         rclcpp::spin_some(node);
-    }
 
-//    rclcpp::spin(node);
+    }
     rclcpp::shutdown();
     return 0;
 }

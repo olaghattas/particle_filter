@@ -370,7 +370,7 @@ void ParticleFilter::updateWeights(double std_landmark[],
 
 
 Eigen::Vector2d ParticleFilter::projectParticlesto2D(const Eigen::Vector4d& particle, const Eigen::Matrix3d& intrinsicParams, const Eigen::Matrix4d& extrinsicParams)
-{
+{   // still didnt get the value
     Eigen::MatrixXd modifiedIntrinsicParams(3, 4);
     modifiedIntrinsicParams << intrinsicParams(0, 0), intrinsicParams(0, 1), intrinsicParams(0, 2), 0.0,
             intrinsicParams(1, 0), intrinsicParams(1, 1), intrinsicParams(1, 2), 0.0,
@@ -384,7 +384,7 @@ Eigen::Vector2d ParticleFilter::projectParticlesto2D(const Eigen::Vector4d& part
     Eigen::Vector4d projected_homog_point = compositeMatrix * particle;
 
     // Store the resulting 2D point in an Eigen::Vector2d object
-    Eigen::Vector2d projectedPoint(projected_homog_point(0) / projected_homog_point(3), projected_homog_point(1) / projected_homog_point(3));
+    Eigen::Vector2d projectedPoint(projected_homog_point(0) / projected_homog_point(2), projected_homog_point(1) / projected_homog_point(2));
 
     return projectedPoint;
 }
@@ -393,7 +393,7 @@ Eigen::Vector2d ParticleFilter::projectParticlesto2D(const Eigen::Vector4d& part
 
 //}
 
-// the function runs training before inferecinG it will then be separated
+// the function runs training before inferencing it will then be separated
 void ParticleFilter::enforce_non_collision(const std::vector<Particle> &old_particles, std::string directoryPath, bool door_close){
 
     std::vector<float> features_inf(3 * num_particles);
@@ -434,3 +434,5 @@ void ParticleFilter::enforce_non_collision(const std::vector<Particle> &old_part
 
 
 
+//std::filesystem::path pkg_dir = ament_index_cpp::get_package_share_directory("collision");
+//auto json_file_path = pkg_dir / "config" / "config.json";

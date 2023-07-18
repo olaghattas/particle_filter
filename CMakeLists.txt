@@ -27,6 +27,7 @@ find_package(cv_bridge REQUIRED)
 find_package(detection_msgs REQUIRED)
 #find_package(tf2_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
+find_package(yaml-cpp REQUIRED)
 
 
 
@@ -73,6 +74,22 @@ ament_target_dependencies(particle_filter_node ros2-tiny-cuda-nn)
 #target_link_libraries(particle_filter_node ${collision_LIBRARIES})
 target_link_libraries(particle_filter_node ${ros2-tiny-cuda-nn_LIBRARIES})
 target_include_directories(particle_filter_node PUBLIC ${EIGEN3_INCLUDE_DIRS})
+
+
+add_executable(yaml_node src/example_yaml.cpp)
+target_include_directories(yaml_node PUBLIC ${EIGEN3_INCLUDE_DIRS})
+target_include_directories(yaml_node PUBLIC ${YAML_CPP_INCLUDE_DIRS})
+
+# Link the libraries
+target_link_libraries(yaml_node
+        ${YAML_CPP_LIBRARIES}
+        ${EIGEN3_LIBRARIES}
+        )
+
+install(
+        DIRECTORY config
+        DESTINATION share/${PROJECT_NAME}
+)
 
 #target_include_directories(particle_filter_node PUBLIC
 #        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
