@@ -30,8 +30,8 @@ struct Particle {
 struct LandmarkObs {
 
     std::string name;        // Id of matching landmark. landmark in our case is the joint we are sarting with on ebut later will include all joints
-    double x;      // x position of landmark (joint) in camera coordinates
-    double y;      // y position of landmark (joint) in camera coordinates
+    int x;      // x position of landmark (joint) in pixels
+    int y;      // y position of landmark (joint) in pixels
 }; // going to be 1x2 for now (left shoulder joint)
 
 /*
@@ -57,9 +57,11 @@ private:
     std::vector<double> weights;
 
     // Set of current particles
-    std::vector<Particle> particles;
+
 
 public:
+    std::vector<Particle> particles;
+
     // Constructor
     ParticleFilter(int num) : num_particles(num), is_initialized(false) {}
 
@@ -73,11 +75,9 @@ public:
 
     void updateWeights(double std_landmark[],
                        std::vector<LandmarkObs> observations, const Eigen::Matrix<double, 3, 3, Eigen::RowMajor> intrinsicParams,
-                       const Eigen::Matrix4d extrinsicParams);
+                       Eigen::Matrix4d extrinsicParams);
 
     void resample();
-
-    void publish_particles(const std::vector<Particle> &particles);
 
     /**
 	 * initialized Returns whether particle filter is initialized yet or not.

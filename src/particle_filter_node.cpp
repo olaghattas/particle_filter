@@ -20,10 +20,8 @@
 #include <geometry_msgs/msg/transform_stamped.hpp>
 #include <geometry_msgs/msg/pose.hpp>
 
-#include <iostream>
+
 #include <Eigen/Dense>
-#include <fstream>
-#include <nlohmann/json.hpp>
 #include <cv_bridge/cv_bridge.h>
 
 #include "tf2_ros/transform_listener.h"
@@ -33,8 +31,10 @@
 #include <random>
 #include <map>
 #include <opencv2/opencv.hpp>
-//#include "detection_msgs/msg/pose_msg.hpp"
+#include "detection_msgs/msg/pose_msg.hpp"
 #include <array>
+#include <yaml-cpp/yaml.h>
+#include "ament_index_cpp/get_package_share_directory.hpp"
 
 struct TransformData {
     double posX;
@@ -58,14 +58,14 @@ private:
 
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr publisher_;
 //    rclcpp::TimerBase::SharedPtr timer_;
-    std::map<std::string, geometry_msgs::msg::Transform> cameraextrinsics;
+    std::map<std::string, Eigen::Matrix4d> cameraextrinsics;
     Eigen::Matrix<double, 3, 3, Eigen::RowMajor> cameraMatrix;
-    Eigen::Matrix<double, 3, 4, Eigen::RowMajor> cameraProjectionMatrix;
     LandmarkObs observation; // Member variable to store the observation
 
     rclcpp::TimerBase::SharedPtr timer_{nullptr};
     std::shared_ptr<tf2_ros::TransformListener> tf_listener_{nullptr};
     std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+
 
 
 public:
@@ -78,72 +78,33 @@ public:
 
         tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
-        // subscribe to point coordinate info to get intrinsic parameters
-//        auto pose_sub = create_subscription<detection_msgs::msg::PoseMsg>(
-//                "/coord_shoulder_joint_in_px", 1,
-//                [this](const detection_msgs::msg::PoseMsg::SharedPtr msg) { PosePixCallback(msg); });
+//         subscribe to point coordinate info to get intrinsic parameters
+        auto pose_sub = create_subscription<detection_msgs::msg::PoseMsg>(
+                "/coord_shoulder_joint_in_px", 1,
+                [this](const detection_msgs::msg::PoseMsg::SharedPtr msg) { PosePixCallback(msg); });
 
         auto cameraInfoSub = create_subscription<sensor_msgs::msg::CameraInfo>(
                 "/camera/color/camera_info", 1,
                 [this](const sensor_msgs::msg::CameraInfo::SharedPtr msg) { cameraInfoCallback(msg); });
 
-        bool sim = true;
-        // to decide, from unity i have to subscribe to tf2, thinking of keeping it the same or getting extrinsic directly form checkerboard.
-        if (!sim) {
-            auto dining_camera_sub = create_subscription<sensor_msgs::msg::Image>(
-                    "/camera_dining_room/color/image_raw", 1,
-                    [this](const sensor_msgs::msg::Image::SharedPtr msg) {
-                        geometry_msgs::msg::Transform result_dining = get_extrinisics(msg);
-                        std::string dine = "dining";
-                        cameraextrinsics.insert(std::make_pair(dine, result_dining));
-                    });
+        //fill the cam extrinsic map
+        cam_extrinsics();
 
-            auto living_camera_sub = create_subscription<sensor_msgs::msg::Image>(
-                    "/camera_living_room/color/image_raw", 1,
-                    [this](const sensor_msgs::msg::Image::SharedPtr msg) {
-                        geometry_msgs::msg::Transform result_living = get_extrinisics(msg);
-                        std::string living = "living";
-                        cameraextrinsics.insert(std::make_pair(living, result_living));
-                    });
-
-            auto bedroom_camera_sub = create_subscription<sensor_msgs::msg::Image>(
-                    "/camera_bedroom/color/image_raw", 1,
-                    [this](const sensor_msgs::msg::Image::SharedPtr msg) {
-                        geometry_msgs::msg::Transform result_bedroom = get_extrinisics(msg);
-                        std::string bedroom = "bedroom";
-                        cameraextrinsics.insert(std::make_pair(bedroom, result_bedroom));
-                    });
-
-            auto kitchen_camera_sub = create_subscription<sensor_msgs::msg::Image>(
-                    "/camera_kitchen/color/image_raw", 1,
-                    [this](const sensor_msgs::msg::Image::SharedPtr msg) {
-                        geometry_msgs::msg::Transform result_kitchen = get_extrinisics(msg);
-                        std::string kitchen = "kitchen";
-                        cameraextrinsics.insert(std::make_pair(kitchen, result_kitchen));
-                    });
-        }
-        if (sim) {
-            // Call on_timer function every second
-            timer_ = this->create_wall_timer(std::chrono::seconds(1), std::bind(&ParticleFilterNode::tfCallback, this));
-
-
-
-        }
     }
 
     LandmarkObs getObservation() const {
         return observation;
     }
 
-//    LandmarkObs PosePixCallback(const detection_msgs::msg::PoseMsg::SharedPtr &msg) {
-//        LandmarkObs observation;
-//        observation.name = msg->name;
-//        observation.x = msg->coordinates.x;
-//        observation.y = msg->coordinates.y;
-//        return observation;
-//    }
+    LandmarkObs PosePixCallback(const detection_msgs::msg::PoseMsg::SharedPtr &msg) {
+        LandmarkObs observation;
+        observation.name = msg->name;
+        observation.x = msg->pixel_coordinate_x;
+        observation.y = msg->pixel_coordinate_y;
+        return observation;
+    }
 
-    void publish_particles(const std::vector<Particle> &particles) {       // Create a marker array message
+    void publish_particles(std::vector<Particle> &particles) {       // Create a marker array message
         auto markerArrayMsg = std::make_shared<visualization_msgs::msg::MarkerArray>();
         // Populate the marker array with markers
         for (const auto &particle: particles) {
@@ -181,55 +142,63 @@ public:
         // Access camera matrix values
         Eigen::Map<const Eigen::Matrix<double, 3, 3, Eigen::RowMajor>> K(msg->k.data());
         cameraMatrix = K;
-        // Access camera projection matrix values might be used later
-//        Eigen::Map<const Eigen::Matrix<double, 3, 4, Eigen::RowMajor>> P(msg->p.data());
-//        cameraProjectionMatrix = P;
     }
 
-    geometry_msgs::msg::Transform get_extrinisics(const sensor_msgs::msg::Image::SharedPtr msg) {
-        geometry_msgs::msg::Transform cam_ext;
-        geometry_msgs::msg::Vector3 translation;
-        translation.x = 1.0;
-        translation.y = 2.0;
-        translation.z = 3.0;
-        cam_ext.translation = translation;
-        geometry_msgs::msg::Quaternion rotation;
-        rotation.x = 0.0;
-        rotation.y = 0.0;
-        rotation.z = 0.0;
-        rotation.w = 1.0;
-        cam_ext.rotation = rotation;
-        return cam_ext;
-    }
+    void cam_extrinsics() {
+        std::filesystem::path pkg_dir = ament_index_cpp::get_package_share_directory("particle_filter");
+        auto file_path = pkg_dir / "config" / "transformation_matrix.yaml";
 
-    void tfCallback() {
-        std::string toFrame = "unity";
-        std::vector<std::string> fromFrames = {"tapo_camera_kitchen", "tapo_camera_dining", "tapo_camera_bedroom",
-                                               "tapo_camera_living"};
+        // Load YAML file
+        YAML::Node yaml_data = YAML::LoadFile(file_path);
 
-        for (auto &fromFrame: fromFrames) {
-            try {
-                geometry_msgs::msg::TransformStamped t = tf_buffer_->lookupTransform(
-                        toFrame, fromFrame,
-                        tf2::TimePoint(),std::chrono::milliseconds(50));
 
-                geometry_msgs::msg::Transform transform_ = t.transform;
 
-                std::string cam_loc;
-                size_t lastSpace = fromFrame.find_last_of(' ');
-                if (lastSpace != std::string::npos) {
-                    cam_loc = fromFrame.substr(lastSpace + 1);
-                } else {
-                    cam_loc = fromFrame;
+        // Extract transformations from YAML data
+        YAML::Node transformations = yaml_data["transformations"];
+        for (const auto& transformation : transformations)
+        {
+            // Extract ID and matrix
+            std::string matrix_id = transformation["id"].as<std::string>();
+            Eigen::Matrix4d matrix;
+            for (int i = 0; i < 4; ++i)
+            {
+                for (int j = 0; j < 4; ++j)
+                {
+                    matrix(i, j) = transformation["matrix"][i][j].as<double>();
                 }
-                cameraextrinsics.insert(std::make_pair(cam_loc, transform_));
-
-            } catch (const tf2::TransformException &ex) {
-                RCLCPP_INFO(
-                        this->get_logger(), "Could not transform %s to %s: %s",
-                        toFrame.c_str(), fromFrame.c_str(), ex.what());
-                return;
             }
+            std::string camera = transformation["camera"].as<std::string>();
+        std::string toFrame = "aptag_" + matrix_id;
+
+        try {
+            // get the geometry transform between aptag and camera
+            geometry_msgs::msg::TransformStamped t = tf_buffer_->lookupTransform(
+                    toFrame, camera,
+                    tf2::TimePoint(),std::chrono::milliseconds(50));
+
+            geometry_msgs::msg::Transform transform_aptag_in_cam_geom = t.transform;
+
+            std::string cam_loc;
+            size_t lastSpace = camera.find_last_of(' ');
+            if (lastSpace != std::string::npos) {
+                cam_loc = camera.substr(lastSpace + 1);
+            } else {
+                cam_loc = camera;
+            }
+            // turn geometry transform to 4x4 matrix
+            Eigen::Matrix4d transform_aptag_in_cam = transform_geometry_to_matrix(transform_aptag_in_cam_geom);
+
+            //multiply the transform of the aptag in the world with the inverse of the trasform matrix
+            // TODO: check if this is matrix or element wise multiplication
+            Eigen::Matrix4d transform_ = matrix * transform_aptag_in_cam.inverse();
+            cameraextrinsics.insert(std::make_pair(cam_loc, transform_));
+
+        } catch (const tf2::TransformException &ex) {
+            RCLCPP_INFO(
+                    this->get_logger(), "Could not transform %s to %s: %s",
+                    toFrame.c_str(), camera.c_str(), ex.what());
+            return;
+        }
 
         }
     }
@@ -238,28 +207,41 @@ public:
         return cameraMatrix;
     }
 
-    std::map<std::string, geometry_msgs::msg::Transform> get_cam_extrinsic_matrix() {
+    std::map<std::string, Eigen::Matrix4d> get_cam_extrinsic_matrix() {
         return cameraextrinsics;
+    }
+
+    Eigen::Matrix4d transform_geometry_to_matrix(geometry_msgs::msg::Transform transform){
+        Eigen::Matrix4d extrinsicmatrix;
+        Eigen::Quaterniond quaternion(transform.rotation.w,
+                                      transform.rotation.x,
+                                      transform.rotation.y,
+                                      transform.rotation.z);
+        Eigen::Matrix3d rotationMatrix = quaternion.normalized().toRotationMatrix();
+        Eigen::Vector3d translationVector(transform.translation.x,
+                                          transform.translation.y,
+                                          transform.translation.z);
+
+        extrinsicmatrix.block<3, 3>(0, 0) = rotationMatrix;
+        extrinsicmatrix.block<3, 1>(0, 3) = translationVector;
+        extrinsicmatrix.row(3) << 0, 0, 0, 1;
+        return extrinsicmatrix;
     }
 
 };
 
-
 int main(int argc, char **argv) {
     rclcpp::init(argc, argv);
     auto node = std::make_shared<ParticleFilterNode>();
-    std::map<std::string, geometry_msgs::msg::Transform> cameraextrinsics;
+    std::map<std::string, Eigen::Matrix4d> cameraextrinsics;
     Eigen::Matrix<double, 3, 3, Eigen::RowMajor> cameraMatrix;
 
-    // subscribe to camera info to get intrinsic parameters and save them in a map
-
-
-    // Todo map observation to camera and intrinsic extirinsics
+    // Todo map observation to camera and intrinsic extrinsics
     //    std::map<std::string, cv::Mat> cameraExtrinsics;
     //    cameraExtrinsics.insert(std::make_pair("dining", result_dining));
-    bool first_run = true;
+    bool not_initialized = true;
     while (rclcpp::ok()) {
-        if (first_run){
+        if (not_initialized){
             if (cameraMatrix.size() == 0) {
                 cameraMatrix = node->get_cam_intrinsic_matrix();
             }
@@ -267,7 +249,7 @@ int main(int argc, char **argv) {
                 cameraextrinsics = node->get_cam_extrinsic_matrix();
             }
             if (cameraMatrix.size() != 0 && cameraextrinsics.size() != 0) {
-                first_run = false;
+                not_initialized = false;
             }
         }
         else {
@@ -320,6 +302,8 @@ int main(int argc, char **argv) {
                     particle_filter.motion_model(delta_t, sigma_pos, velocity, yaw_rate);
 
                 }
+
+                node->publish_particles(particle_filter.particles);
                 // simulate the addition of noise to noiseless observation data.
                 std::vector<LandmarkObs> noisy_observations;
                 LandmarkObs obs;
@@ -334,20 +318,9 @@ int main(int argc, char **argv) {
                 }
 
 
-                Eigen::Quaterniond quaternion(cameraextrinsics[cam_name].rotation.w,
-                                              cameraextrinsics[cam_name].rotation.x,
-                                              cameraextrinsics[cam_name].rotation.y,
-                                              cameraextrinsics[cam_name].rotation.z);
-                Eigen::Matrix3d rotationMatrix = quaternion.normalized().toRotationMatrix();
-                Eigen::Vector3d translationVector(cameraextrinsics[cam_name].translation.x,
-                                                  cameraextrinsics[cam_name].translation.y,
-                                                  cameraextrinsics[cam_name].translation.z);
-                Eigen::Matrix4d extrinsicmatrix;
-                extrinsicmatrix.block<3, 3>(0, 0) = rotationMatrix;
-                extrinsicmatrix.block<3, 1>(0, 3) = translationVector;
-                extrinsicmatrix.row(3) << 0, 0, 0, 1;
+
                 // Update the weights and resample
-                particle_filter.updateWeights(sigma_landmark, noisy_observations, cameraMatrix, extrinsicmatrix);
+                particle_filter.updateWeights(sigma_landmark, noisy_observations, cameraMatrix, cameraextrinsics[cam_name]);
                 particle_filter.resample();
             }
         }
