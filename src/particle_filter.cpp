@@ -12,6 +12,15 @@
 #include <string>
 #include <cmath>
 
+// needed for the projection
+#include "opencv2/core/core.hpp"
+#include "opencv2/imgproc/imgproc.hpp"
+#include "opencv2/calib3d/calib3d.hpp"
+#include "opencv2/highgui/highgui.hpp"
+#include <iostream>
+#include <vector>
+#include <Eigen/Core>
+
 
 #define EPSILON 1e-4
 
@@ -20,11 +29,8 @@
 void ParticleFilter::init(std::pair<double, double> x_bound, std::pair<double, double> y_bound,
                           std::pair<double, double> z_bound,
                           std::pair<double, double> theta_bound) {
-    // TODO: Set the number of particles. Initialize all particles to first position (based on estimates of
-    //   x, y, theta and their uncertainties from GPS) and all weights to 1.
-    // Add random Gaussian noise to each particle.
-    // NOTE: Consult particle_filter.h for more information about this method (and others in this file).
 
+    // Add random Gaussian noise to each particle.
     std::default_random_engine gen;
     std::uniform_real_distribution<double> xNoise(x_bound.first, x_bound.second);
     std::uniform_real_distribution<double> yNoise(y_bound.first, y_bound.second);
@@ -80,6 +86,7 @@ void ParticleFilter::motion_model(double delta_t, std::array<double, 4> std_pos,
         p.z += delta_z;
         p.theta += delta_yaw;
     }
+
     // to be passed in through arguments
     bool door_open = true;
     std::string directoryPath = "/home/ola/Desktop/unity_points/";
@@ -121,16 +128,16 @@ void ParticleFilter::updateWeights(double std_landmark[],
 //            LandmarkObs current_obs = observations[j]; // in pixels in the image plane
 //        }
         LandmarkObs current_obs = observations[0]; // TODO be changed when more observations are added
-        Eigen::Vector4d particle;
-        particle << p->x, p->y, p->z, 1;
+        std::vector<cv::Point3d> particle;
+        particle.push_back(cv::Point3d(p->x, p->y, p->z));
         // projected particles to image plane
 
-        Eigen::Vector2d predicted_particles =  projectParticlesto2D(particle, intrinsicParams,extrinsicParams);
+        std::vector<cv::Point2d> predicted_particles =  projectParticlesto2D(particle, intrinsicParams,extrinsicParams);
 
         // update weights using Multivariate Gaussian Distribution
         // equation given in Transformations and Associations Quiz
-        double gaussian = ((predicted_particles[0] - current_obs.x) * (predicted_particles[0] - current_obs.x) / (2 * sigma_x * sigma_x)) +
-                              ((predicted_particles[1] - current_obs.y) * (predicted_particles[1] - current_obs.y) / (2 * sigma_x * sigma_y));
+        double gaussian = ((predicted_particles[0].x - current_obs.x) * (predicted_particles[0].x - current_obs.x) / (2 * sigma_x * sigma_x)) +
+                              ((predicted_particles[0].y - current_obs.y) * (predicted_particles[0].y - current_obs.y) / (2 * sigma_x * sigma_y));
         double gaussian_factor = 1 / (2 * M_PI * sigma_x * sigma_y);
         gaussian = exp(-gaussian);
         gaussian = gaussian * gaussian_factor;
@@ -149,23 +156,35 @@ void ParticleFilter::updateWeights(double std_landmark[],
     }
 }
 
+std::vector<cv::Point3d> ConvertEigenToCV(const Eigen::Vector3d& particle) {
+    std::vector<cv::Point3d> objectPoints;
+    objectPoints.push_back(std::vector<cv::Point3d>particle[0], particle[1], particle[2]));
+    return objectPoints;
+}
 
-Eigen::Vector2d ParticleFilter::projectParticlesto2D(const Eigen::Vector4d& particle, const Eigen::Matrix3d& intrinsicParams, const Eigen::Matrix4d& extrinsicParams)
-{   // still didnt get the value
-    Eigen::MatrixXd modifiedIntrinsicParams(3, 4);
-    modifiedIntrinsicParams << intrinsicParams(0, 0), intrinsicParams(0, 1), intrinsicParams(0, 2), 0.0,
-            intrinsicParams(1, 0), intrinsicParams(1, 1), intrinsicParams(1, 2), 0.0,
-            intrinsicParams(2, 0), intrinsicParams(2, 1), intrinsicParams(2, 2), 0.0;
+std::vector<cv::Point2d> ParticleFilter::projectParticlesto2D(const std::vector<cv::Point3d> particle, const Eigen::Matrix3d& intrinsicMat, const Eigen::Matrix4d& extrinsicParams)
+{
+    std::vector<cv::Point2d> imagePoints;
 
-// Define the composite transformation matrix
-    Eigen::Matrix<double, 4, 4> compositeMatrix = modifiedIntrinsicParams.matrix() * extrinsicParams;
+    // Define camera extrinsics using Eigen
+    // Extract the rotation part (3x3 submatrix) from the extrinsicParams
+    Eigen::Matrix3d R = extrinsicParams.block<3, 3>(0, 0);
 
+    // Convert the rotation matrix to Rodrigues vector format
+    cv::Mat_<double> rotationMat(3, 3);
+    cv::eigen2cv(R, rotationMat);
+    cv::Rodrigues(rotationMat, rvec);
 
-    // Multiply the homogeneous 3D point with the matrix to get the projected 2D point
-    Eigen::Vector4d projected_homog_point = compositeMatrix * particle;
+    // Extract the translation part (last column) from the extrinsicParams
+    tvec.create(3, 1);
+    tvec << extrinsicParams(0, 3), extrinsicParams(1, 3), extrinsicParams(2, 3);
 
-    // Store the resulting 2D point in an Eigen::Vector2d object
-    Eigen::Vector2d projectedPoint(projected_homog_point(0) / projected_homog_point(2), projected_homog_point(1) / projected_homog_point(2));
+    // Convert Eigen intrinsic matrix to OpenCV format (3x3)
+    cv::Mat cvIntrinsicMat = (cv::Mat_<double>(3, 3) << intrinsicMat(0, 0), intrinsicMat(0, 1), intrinsicMat(0, 2),
+            intrinsicMat(1, 0), intrinsicMat(1, 1), intrinsicMat(1, 2),
+            intrinsicMat(2, 0), intrinsicMat(2, 1), intrinsicMat(2, 2));
+
+    cv::projectPoints(objectPoints, cvRotationVec, cvTranslationVec, cvIntrinsicMat, cv::Mat(), imagePoints);
 
     return projectedPoint;
 }
@@ -174,7 +193,7 @@ Eigen::Vector2d ParticleFilter::projectParticlesto2D(const Eigen::Vector4d& part
 
 //}
 
-// the function runs training before inferencing it will then be separated
+// TODO; Separate training and inferencing
 void ParticleFilter::enforce_non_collision(const std::vector<Particle> &old_particles, std::string directoryPath, bool door_close){
 
     std::vector<float> features_inf(3 * num_particles);
@@ -214,4 +233,24 @@ void ParticleFilter::enforce_non_collision(const std::vector<Particle> &old_part
 }
 
 
+//
+//Eigen::Vector2d ParticleFilter::projectParticlesto2D(const Eigen::Vector4d& particle, const Eigen::Matrix3d& intrinsicParams, const Eigen::Matrix4d& extrinsicParams)
+//{
+//    Eigen::MatrixXd modifiedIntrinsicParams(3, 4);
+//    modifiedIntrinsicParams << intrinsicParams(0, 0), intrinsicParams(0, 1), intrinsicParams(0, 2), 0.0,
+//            intrinsicParams(1, 0), intrinsicParams(1, 1), intrinsicParams(1, 2), 0.0,
+//            intrinsicParams(2, 0), intrinsicParams(2, 1), intrinsicParams(2, 2), 0.0;
+//
+//// Define the composite transformation matrix
+//    Eigen::Matrix<double, 4, 4> compositeMatrix = modifiedIntrinsicParams.matrix() * extrinsicParams;
+//
+//
+//    // Multiply the homogeneous 3D point with the matrix to get the projected 2D point
+//    Eigen::Vector4d projected_homog_point = compositeMatrix * particle;
+//
+//    // Store the resulting 2D point in an Eigen::Vector2d object
+//    Eigen::Vector2d projectedPoint(projected_homog_point(0) / projected_homog_point(2), projected_homog_point(1) / projected_homog_point(2));
+//
+//    return projectedPoint;
+//}
 

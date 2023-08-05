@@ -90,7 +90,7 @@ public:
 
     void enforce_non_collision(const std::vector<Particle> &old_particles, std::string directoryPath, bool door_close);
 
-    Eigen::Vector2d projectParticlesto2D(const Eigen::Vector4d &particle, const Eigen::Matrix3d &intrinsicParams,
+    Eigen::Vector2d projectParticlesto2D(const Eigen::Vector3d &particle, const Eigen::Matrix3d &intrinsicParams,
                                          const Eigen::Matrix4d &extrinsicParams);
 
 
