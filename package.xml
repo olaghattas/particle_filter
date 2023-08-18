@@ -20,12 +20,15 @@
   <depend>collision</depend>
 <!--  <depend>tf2_ros</depend>-->
   <depend>collision_lib</depend>
+<!--  <depend>opencv2</depend>-->
+  <build_depend>opencv2</build_depend>
+
 
   <build_depend>sensor_msgs</build_depend>
   <buildtool_depend>ros2-tiny-cuda-nn</buildtool_depend>
 <!--  <buildtool_depend>collision</buildtool_depend>-->
   <buildtool_depend>detection_msgs</buildtool_depend>
-
+  <exec_depend>opencv2</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
   <!-- Properly handle Eigen3 includes -->

@@ -16,7 +16,6 @@ find_package(visualization_msgs REQUIRED)
 find_package(eigen3_cmake_module REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(collision_lib REQUIRED)
-#find_package(collision REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(fcl REQUIRED)
@@ -25,10 +24,9 @@ find_package(ros2-tiny-cuda-nn REQUIRED)
 find_package(ament_index_cpp REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(detection_msgs REQUIRED)
-#find_package(tf2_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(yaml-cpp REQUIRED)
-find_package(ament_index_cpp REQUIRED)
+find_package(OpenCV REQUIRED)
 
 
 
@@ -40,22 +38,19 @@ set(dependencies1
         geometry_msgs
         cv_bridge
         detection_msgs
-#        collision
         collision_lib
         tf2_ros
-        ament_index_cpp
         )
 
 # Add executable
 add_library(particle_filter src/particle_filter.cpp)
 ament_target_dependencies(particle_filter ${dependencies1})
-#target_link_libraries(particle_filter  collision_lib)
 target_link_libraries(particle_filter ${FCL_LIBRARIES})
-#target_link_libraries(particle_filter collision)
 ament_target_dependencies(particle_filter ros2-tiny-cuda-nn)
-target_link_libraries(particle_filter ${ros2-tiny-cuda-nn_LIBRARIES})
-target_include_directories(particle_filter PUBLIC ${EIGEN3_INCLUDE_DIRS})
 
+target_link_libraries(particle_filter ${ros2-tiny-cuda-nn_LIBRARIES})
+target_link_libraries(particle_filter ${OpenCV_LIBRARIES})
+target_include_directories(particle_filter PUBLIC ${EIGEN3_INCLUDE_DIRS})
 
 target_include_directories(particle_filter PUBLIC
         ${CUDA_INCLUDE_DIRS}
@@ -75,6 +70,7 @@ target_link_libraries(particle_filter_node ${ros2-tiny-cuda-nn_LIBRARIES})
 target_include_directories(particle_filter_node PUBLIC ${EIGEN3_INCLUDE_DIRS})
 target_include_directories(particle_filter_node PUBLIC ${YAML_CPP_INCLUDE_DIRS})
 target_link_libraries(particle_filter_node yaml-cpp)
+target_link_libraries(particle_filter_node ${OpenCV_LIBRARIES})
 
 #add_executable(yaml_node src/example_yaml.cpp)
 #target_include_directories(yaml_node PUBLIC ${EIGEN3_INCLUDE_DIRS})
@@ -98,18 +94,19 @@ target_include_directories(particle_filter_node PUBLIC
         ${YAML_CPP_LIBRARIES}
         ${CUDA_INCLUDE_DIRS}
         ${ros2-tiny-cuda-nn_INCLUDE_DIR}
-#        ${collision_INCLUDE_DIR}
+        ${OpenCV_INCLUDE_DIRS}
         )
 
 target_include_directories(particle_filter PUBLIC
         ${CUDA_INCLUDE_DIRS}
         ${ros2-tiny-cuda-nn_INCLUDE_DIR}
-#        ${collision_INCLUDE_DIR}
+        ${OpenCV_INCLUDE_DIRS}
         )
 
 include_directories(
         include
         ${EIGEN3_INCLUDE_DIRS}
+        ${OpenCV_INCLUDE_DIRS}
 )
 
 install(TARGETS

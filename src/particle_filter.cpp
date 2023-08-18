@@ -5,7 +5,6 @@
 #include <algorithm>
 #include <map>
 #include <numeric>
-#include <math.h>
 #include "particle_filter/particle_filter.h"
 #include <functional>
 #include <memory>
@@ -13,13 +12,11 @@
 #include <cmath>
 
 // needed for the projection
-#include "opencv2/core/core.hpp"
-#include "opencv2/imgproc/imgproc.hpp"
-#include "opencv2/calib3d/calib3d.hpp"
-#include "opencv2/highgui/highgui.hpp"
 #include <iostream>
-#include <vector>
-#include <Eigen/Core>
+
+
+
+
 
 
 #define EPSILON 1e-4
@@ -40,14 +37,15 @@ void ParticleFilter::init(std::pair<double, double> x_bound, std::pair<double, d
     particles.clear();
     weights.clear();
     for (int i = 0; i < num_particles; ++i) {
-        Particle p = {i, xNoise(gen), yNoise(gen),zNoise(gen),  yawNoise(gen), 1.0};
+        Particle p = {i, xNoise(gen), yNoise(gen), zNoise(gen), yawNoise(gen), 1.0};
         particles.push_back(p);
         weights.push_back(1);
     }
     is_initialized = true;
 }
 
-void ParticleFilter::motion_model(double delta_t, std::array<double, 4> std_pos, double velocity, double yaw_rate) {
+void ParticleFilter::motion_model(double delta_t, std::array<double, 4> std_pos, double velocity, double yaw_rate,
+                                   tcnn::cpp::Module *network, std::vector<bool> doors_status) {
     std::default_random_engine gen;
     std::normal_distribution<double> xNoise(0, std_pos[0]);
     std::normal_distribution<double> yNoise(0, std_pos[1]);
@@ -91,7 +89,7 @@ void ParticleFilter::motion_model(double delta_t, std::array<double, 4> std_pos,
     bool door_open = true;
     std::string directoryPath = "/home/ola/Desktop/unity_points/";
 
-    ParticleFilter::enforce_non_collision(particles_before, directoryPath,  door_open);
+    ParticleFilter::enforce_non_collision(particles_before, directoryPath, doors_status, network);
 
 }
 
@@ -110,7 +108,9 @@ void ParticleFilter::resample() {
 }
 
 void ParticleFilter::updateWeights(double std_landmark[],
-                                   std::vector<LandmarkObs> observations,  const Eigen::Matrix<double, 3, 3, Eigen::RowMajor> intrinsicParams, Eigen::Matrix4d extrinsicParams) {
+                                   std::vector<LandmarkObs> observations,
+                                   const Eigen::Matrix<double, 3, 3, Eigen::RowMajor> intrinsicParams,
+                                   Eigen::Matrix4d extrinsicParams) {
     // Update the weights of each particle using a multi-variate Gaussian distribution. You can read
 
     double sigma_x = std_landmark[0];
@@ -118,7 +118,7 @@ void ParticleFilter::updateWeights(double std_landmark[],
     double weights_sum = 0;
 
     // loop through each of the particle to update
-    for(int i = 0; i < num_particles; ++i){
+    for (int i = 0; i < num_particles; ++i) {
         Particle *p = &particles[i];
         double weight = 1.0;
 
@@ -128,16 +128,19 @@ void ParticleFilter::updateWeights(double std_landmark[],
 //            LandmarkObs current_obs = observations[j]; // in pixels in the image plane
 //        }
         LandmarkObs current_obs = observations[0]; // TODO be changed when more observations are added
-        std::vector<cv::Point3d> particle;
-        particle.push_back(cv::Point3d(p->x, p->y, p->z));
+
+        /// has to be in a vector for rojecton cv2
+
         // projected particles to image plane
 
-        std::vector<cv::Point2d> predicted_particles =  projectParticlesto2D(particle, intrinsicParams,extrinsicParams);
+        std::vector<cv::Point2d> predicted_particles = projectParticlesto2D(*p, intrinsicParams, extrinsicParams);
 
         // update weights using Multivariate Gaussian Distribution
         // equation given in Transformations and Associations Quiz
-        double gaussian = ((predicted_particles[0].x - current_obs.x) * (predicted_particles[0].x - current_obs.x) / (2 * sigma_x * sigma_x)) +
-                              ((predicted_particles[0].y - current_obs.y) * (predicted_particles[0].y - current_obs.y) / (2 * sigma_x * sigma_y));
+        double gaussian = ((predicted_particles[0].x - current_obs.x) * (predicted_particles[0].x - current_obs.x) /
+                           (2 * sigma_x * sigma_x)) +
+                          ((predicted_particles[0].y - current_obs.y) * (predicted_particles[0].y - current_obs.y) /
+                           (2 * sigma_x * sigma_y));
         double gaussian_factor = 1 / (2 * M_PI * sigma_x * sigma_y);
         gaussian = exp(-gaussian);
         gaussian = gaussian * gaussian_factor;
@@ -145,7 +148,7 @@ void ParticleFilter::updateWeights(double std_landmark[],
         weight *= gaussian;
         weights_sum += weight;
         p->weight = weight;
-        }
+    }
 
 
     // normalize weights to bring them in (0, 1]
@@ -156,14 +159,24 @@ void ParticleFilter::updateWeights(double std_landmark[],
     }
 }
 
-std::vector<cv::Point3d> ConvertEigenToCV(const Eigen::Vector3d& particle) {
-    std::vector<cv::Point3d> objectPoints;
-    objectPoints.push_back(std::vector<cv::Point3d>particle[0], particle[1], particle[2]));
-    return objectPoints;
+// Convert Eigen matrix to OpenCV matrix
+cv::Mat eigenToCv(const Eigen::MatrixXd& eigenMat) {
+    cv::Mat cvMat(eigenMat.rows(), eigenMat.cols(), CV_64F);
+    for (int i = 0; i < eigenMat.rows(); ++i) {
+        for (int j = 0; j < eigenMat.cols(); ++j) {
+            cvMat.at<double>(i, j) = eigenMat(i, j);
+        }
+    }
+    return cvMat;
 }
 
-std::vector<cv::Point2d> ParticleFilter::projectParticlesto2D(const std::vector<cv::Point3d> particle, const Eigen::Matrix3d& intrinsicMat, const Eigen::Matrix4d& extrinsicParams)
-{
+std::vector<cv::Point2d>
+ParticleFilter::projectParticlesto2D(const Particle particle_, const Eigen::Matrix3d &intrinsicMat,
+                                     const Eigen::Matrix4d &extrinsicParams) {
+
+    std::vector<cv::Point3d> objectPoints;
+    objectPoints.push_back(cv::Point3d(particle_.x, particle_.y, particle_.z));
+
     std::vector<cv::Point2d> imagePoints;
 
     // Define camera extrinsics using Eigen
@@ -171,33 +184,34 @@ std::vector<cv::Point2d> ParticleFilter::projectParticlesto2D(const std::vector<
     Eigen::Matrix3d R = extrinsicParams.block<3, 3>(0, 0);
 
     // Convert the rotation matrix to Rodrigues vector format
-    cv::Mat_<double> rotationMat(3, 3);
-    cv::eigen2cv(R, rotationMat);
+//    cv::Mat_<double> rotationMat(3, 3);
+    auto rotationMat = eigenToCv(R);
+    cv::Mat rvec(3, 1, cv::DataType<double>::type);
     cv::Rodrigues(rotationMat, rvec);
 
+
     // Extract the translation part (last column) from the extrinsicParams
-    tvec.create(3, 1);
-    tvec << extrinsicParams(0, 3), extrinsicParams(1, 3), extrinsicParams(2, 3);
+    cv::Mat tvec(3, 1, cv::DataType<double>::type);
+    tvec.at<double>(0, 0) = extrinsicParams(0, 3);
+    tvec.at<double>(1, 0) = extrinsicParams(1, 3);
+    tvec.at<double>(2, 0) = extrinsicParams(2, 3);
 
     // Convert Eigen intrinsic matrix to OpenCV format (3x3)
     cv::Mat cvIntrinsicMat = (cv::Mat_<double>(3, 3) << intrinsicMat(0, 0), intrinsicMat(0, 1), intrinsicMat(0, 2),
             intrinsicMat(1, 0), intrinsicMat(1, 1), intrinsicMat(1, 2),
             intrinsicMat(2, 0), intrinsicMat(2, 1), intrinsicMat(2, 2));
 
-    cv::projectPoints(objectPoints, cvRotationVec, cvTranslationVec, cvIntrinsicMat, cv::Mat(), imagePoints);
+    cv::projectPoints(objectPoints, rvec, tvec, cvIntrinsicMat, cv::Mat(), imagePoints);
 
-    return projectedPoint;
+    return imagePoints;
 }
 
-//void ParticleFilter::enforce_non_collision(const std::vector<Particle> &old_particles, std::string directoryPath, bool door_close){
-
-//}
-
 // TODO; Separate training and inferencing
-void ParticleFilter::enforce_non_collision(const std::vector<Particle> &old_particles, std::string directoryPath, bool door_close){
+void ParticleFilter::enforce_non_collision(const std::vector<Particle> &old_particles, std::string directoryPath,
+                                           std::vector<bool> doors_status, tcnn::cpp::Module *network) {
 
     std::vector<float> features_inf(3 * num_particles);
-    std::vector<float> targets_inf(2 * num_particles);
+    std::vector<float> targets_inf(6 * num_particles);
 
     for (int i = 0; i < num_particles; ++i) {
         auto &datapoint = particles[i];
@@ -208,30 +222,60 @@ void ParticleFilter::enforce_non_collision(const std::vector<Particle> &old_part
     }
 
     std::vector<float> pred_targets;
-    pred_targets = check_collision( features_inf, targets_inf, directoryPath);
 
-    for (int i = 0; i < pred_targets.size() / 2; i++) {
-        float point[3] = {features_inf[3 * i + 0], features_inf[3 * i + 1], features_inf[3 * i + 2]};
+    nlohmann::json jsonArray;
+    /// path to params file
+    std::string path = "/home/olagh/particle_filter/src/neural_collision/collision_lib/config/output.json";
+    std::ifstream inputFile(directoryPath);
+    if (inputFile.is_open()) {
+        inputFile >> jsonArray;
+        inputFile.close();
+    } else {
+        std::cerr << "Unable to open output.json for reading" << std::endl;
+    }
+    std::vector<float> floatVector = jsonArray.get<std::vector<float>>();
 
-        // number of pred_targets = num_particles * 2, each particle has two outputs
-        if (pred_targets[i * 2] > .5){
-            // if collision is with a door
-            if (pred_targets[i * 2 + 1] > 0.5)
-            {
-                // if door is closed keep the old points
-                if (door_close){
-                particles[i] = old_particles[i * 2 + 1];
+    pred_targets = check_collision_inf(features_inf, targets_inf, 6, 3, network, floatVector);
+
+    int num_targets = 6;
+    for (int i = 0; i < pred_targets.size() / num_targets; i++) {
+        int size_ = pred_targets.size();
+
+        assert(i * num_targets + 3 < pred_targets.size());
+
+        if (pred_targets[i * num_targets + 1] > .5) {
+            // non-empty
+            if (pred_targets[i * num_targets + 2] > 0.5) {
+                // collision door 1
+                if (doors_status[0]) {
+                    // door 1 closed keep old particles
+                    particles[i] = old_particles[i];
                 }
-            }
-            // if collision and the collision is NOT with a door
-            else {
-                //use the old values
-                particles[i] = old_particles[i * 2 + 1];
+            } else if (pred_targets[i * num_targets + 3] > 0.5) {
+                // collision door 2
+                if (doors_status[1]) {
+                    // door 2 closed keep old particles
+                    particles[i] = old_particles[i];
+                }
+            } else if (pred_targets[i * num_targets + 4] > 0.5) {
+                // collision door 3
+                if (doors_status[2]) {
+                    // door 1 closed keep old particles
+                    particles[i] = old_particles[i];
+                }
+            } else if (pred_targets[i * num_targets + 5] > 0.5) {
+                // collision door 4
+                if (doors_status[3]) {
+                    // door 1 closed keep old particles
+                    particles[i] = old_particles[i];
+                }
+            } else {
+                // not empty and not doors
+                particles[i] = old_particles[i];
             }
         }
     }
 }
-
 
 //
 //Eigen::Vector2d ParticleFilter::projectParticlesto2D(const Eigen::Vector4d& particle, const Eigen::Matrix3d& intrinsicParams, const Eigen::Matrix4d& extrinsicParams)
