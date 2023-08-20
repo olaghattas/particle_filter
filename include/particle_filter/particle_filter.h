@@ -12,11 +12,16 @@
 #include <cuda_fp16.h>
 #include "tiny-cuda-nn/cpp_api.h"
 #include <collision_lib/collision_lib.hpp>
-//#include <get_collision.cpp>
-//#include <collision/datapoint.hpp>
-//#include <collision/get_collision.hpp>
+
 #include <filesystem>
 #include <Eigen/Dense>
+
+#include "opencv2/core/core.hpp"
+#include "opencv2/imgproc/imgproc.hpp"
+#include "opencv2/calib3d/calib3d.hpp"
+#include "opencv2/highgui/highgui.hpp"
+#include <opencv2/opencv.hpp>
+
 
 struct Particle {
     int id;
@@ -44,7 +49,6 @@ inline double dist(double x1, double y1, double x2, double y2) {
     return sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
 }
 
-
 class ParticleFilter {
 private:
     // Number of particles to draw
@@ -71,10 +75,12 @@ public:
     void init(std::pair<double, double> x, std::pair<double, double> y, std::pair<double, double> z,
               std::pair<double, double> theta);
 
-    void motion_model(double delta_t, std::array<double, 4> std_pos, double velocity, double yaw_rate);
+    void motion_model(double delta_t, std::array<double, 4> std_pos, double velocity, double yaw_rate,
+                      tcnn::cpp::Module *network, std::vector<bool> doors_status);
 
     void updateWeights(double std_landmark[],
-                       std::vector<LandmarkObs> observations, const Eigen::Matrix<double, 3, 3, Eigen::RowMajor> intrinsicParams,
+                       std::vector<LandmarkObs> observations,
+                       const Eigen::Matrix<double, 3, 3, Eigen::RowMajor> intrinsicParams,
                        Eigen::Matrix4d extrinsicParams);
 
     void resample();
@@ -88,11 +94,13 @@ public:
 
 //    void enforce_non_collision(const std::vector<Particle> &part);
 
-    void enforce_non_collision(const std::vector<Particle> &old_particles, std::string directoryPath, bool door_close);
+    void enforce_non_collision(const std::vector<Particle> &old_particles, std::string directoryPath,
+                               std::vector<bool> doors_status, tcnn::cpp::Module *network);
 
-    Eigen::Vector2d projectParticlesto2D(const Eigen::Vector3d &particle, const Eigen::Matrix3d &intrinsicParams,
+    std::vector<cv::Point2d> projectParticlesto2D(const Particle particle, const Eigen::Matrix3d &intrinsicParams,
                                          const Eigen::Matrix4d &extrinsicParams);
-
+//    Eigen::Vector2d projectParticlesto2D(const Eigen::Vector3d &particle, const Eigen::Matrix3d &intrinsicParams,
+//                                         const Eigen::Matrix4d &extrinsicParams);
 
 };
 
