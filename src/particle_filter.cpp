@@ -45,7 +45,7 @@ void ParticleFilter::init(std::pair<double, double> x_bound, std::pair<double, d
 }
 
 void ParticleFilter::motion_model(double delta_t, std::array<double, 4> std_pos, double velocity, double yaw_rate,
-                                   tcnn::cpp::Module *network, std::vector<bool> doors_status) {
+                                  std::vector<bool> doors_status) {
     std::default_random_engine gen;
     std::normal_distribution<double> xNoise(0, std_pos[0]);
     std::normal_distribution<double> yNoise(0, std_pos[1]);
@@ -88,8 +88,9 @@ void ParticleFilter::motion_model(double delta_t, std::array<double, 4> std_pos,
     // to be passed in through arguments
     bool door_open = true;
     std::string directoryPath = "/home/ola/Desktop/unity_points/";
-
-    ParticleFilter::enforce_non_collision(particles_before, directoryPath, doors_status, network);
+    std::string ParamFilename = "network_params.json";
+    std::string NetworkFilename = "network_config.json";
+    ParticleFilter::enforce_non_collision(particles_before, ParamFilename,NetworkFilename, doors_status);
 
 }
 
@@ -207,8 +208,8 @@ ParticleFilter::projectParticlesto2D(const Particle particle_, const Eigen::Matr
 }
 
 // TODO; Separate training and inferencing
-void ParticleFilter::enforce_non_collision(const std::vector<Particle> &old_particles, std::string directoryPath,
-                                           std::vector<bool> doors_status, tcnn::cpp::Module *network) {
+void ParticleFilter::enforce_non_collision(const std::vector<Particle> &old_particles, std::string ParamFilename, std::string NetworkFilename,
+                                           std::vector<bool> doors_status) {
 
     std::vector<float> features_inf(3 * num_particles);
     std::vector<float> targets_inf(6 * num_particles);
@@ -225,8 +226,9 @@ void ParticleFilter::enforce_non_collision(const std::vector<Particle> &old_part
 
     nlohmann::json jsonArray;
     /// path to params file
-    std::string path = "/home/olagh/particle_filter/src/neural_collision/collision_lib/config/output.json";
-    std::ifstream inputFile(directoryPath);
+    std::filesystem::path pkg_dir = ament_index_cpp::get_package_share_directory("particle_filter");
+    auto json_file_path = pkg_dir / "config" / ParamFilename;
+    std::ifstream inputFile(json_file_path.string());
     if (inputFile.is_open()) {
         inputFile >> jsonArray;
         inputFile.close();
@@ -235,7 +237,10 @@ void ParticleFilter::enforce_non_collision(const std::vector<Particle> &old_part
     }
     std::vector<float> floatVector = jsonArray.get<std::vector<float>>();
 
-    pred_targets = check_collision_inf(features_inf, targets_inf, 6, 3, network, floatVector);
+    auto net_file_path = pkg_dir / "config" / NetworkFilename;
+    std::string network_config_path = net_file_path.string();
+
+    pred_targets = check_collision_inf(features_inf, targets_inf, 6, 3, network_config_path, floatVector);
 
     int num_targets = 6;
     for (int i = 0; i < pred_targets.size() / num_targets; i++) {
