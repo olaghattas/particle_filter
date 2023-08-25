@@ -76,7 +76,7 @@ public:
               std::pair<double, double> theta);
 
     void motion_model(double delta_t, std::array<double, 4> std_pos, double velocity, double yaw_rate,
-                      tcnn::cpp::Module *network, std::vector<bool> doors_status);
+                      std::vector<bool> doors_status);
 
     void updateWeights(double std_landmark[],
                        std::vector<LandmarkObs> observations,
@@ -94,14 +94,11 @@ public:
 
 //    void enforce_non_collision(const std::vector<Particle> &part);
 
-    void enforce_non_collision(const std::vector<Particle> &old_particles, std::string directoryPath,
-                               std::vector<bool> doors_status, tcnn::cpp::Module *network);
+    void enforce_non_collision(const std::vector<Particle> &old_particles, std::string ParamFilename, std::string NetworkFilename,
+                               std::vector<bool> doors_status);
 
     std::vector<cv::Point2d> projectParticlesto2D(const Particle particle, const Eigen::Matrix3d &intrinsicParams,
                                          const Eigen::Matrix4d &extrinsicParams);
-//    Eigen::Vector2d projectParticlesto2D(const Eigen::Vector3d &particle, const Eigen::Matrix3d &intrinsicParams,
-//                                         const Eigen::Matrix4d &extrinsicParams);
-
 };
 
 

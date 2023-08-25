@@ -329,14 +329,14 @@ int main(int argc, char **argv) {
                     /// todo fix
                     double delta_t = duration.count() / 1000000.0;
                     delta_t = 0.1; // fr debug
-                    std::string directoryPath = "dnjes";
 
-                    if (!network){
-                        // train the model
-                        network = check_collision_training(directoryPath, 3);
-                    }
+//
+//                    if (!network){
+//                        // train the model
+//                        network = check_collision_training(directoryPath, 3);
+//                    }
 
-                    particle_filter.motion_model(delta_t, sigma_pos, velocity, yaw_rate, network, node->getdoorstatus());
+                    particle_filter.motion_model(delta_t, sigma_pos, velocity, yaw_rate, node->getdoorstatus());
                     node->publish_particles(particle_filter.particles);
                 }
 
