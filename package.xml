@@ -19,6 +19,7 @@
   <depend>detection_msgs</depend>
   <depend>ros2-tiny-cuda-nn</depend>
   <depend>collision_lib</depend>
+<!--  <build_depend>fcl</build_depend>-->
 
   <build_depend>opencv2</build_depend>
   <build_depend>sensor_msgs</build_depend>

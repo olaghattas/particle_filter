@@ -18,7 +18,7 @@ find_package(Eigen3 REQUIRED)
 find_package(collision_lib REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
-find_package(fcl REQUIRED)
+#find_package(fcl REQUIRED)
 find_package(CUDA REQUIRED)
 find_package(ros2-tiny-cuda-nn REQUIRED)
 find_package(ament_index_cpp REQUIRED)
@@ -45,7 +45,7 @@ set(dependencies1
 # Add executable
 add_library(particle_filter src/particle_filter.cpp)
 ament_target_dependencies(particle_filter ${dependencies1})
-target_link_libraries(particle_filter ${FCL_LIBRARIES})
+#target_link_libraries(particle_filter ${FCL_LIBRARIES})
 ament_target_dependencies(particle_filter ros2-tiny-cuda-nn)
 
 target_link_libraries(particle_filter ${ros2-tiny-cuda-nn_LIBRARIES})
