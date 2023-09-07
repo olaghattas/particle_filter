@@ -89,21 +89,21 @@ public:
         tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
 //         subscribe to point coordinate info to get intrinsic parameters
-        auto pose_sub_k = create_subscription<detection_msgs::msg::PoseMsg>(
-                "/coord_shoulder_joint_in_px_kitchen", 1,
-                [this](const detection_msgs::msg::PoseMsg::SharedPtr msg) { PosePixCallback_kitchen(msg); });
+//        auto pose_sub_k = create_subscription<detection_msgs::msg::PoseMsg>(
+//                "/coord_shoulder_joint_in_px_kitchen", 1,
+//                [this](const detection_msgs::msg::PoseMsg::SharedPtr msg) { PosePixCallback_kitchen(msg); });
         auto pose_sub_din = create_subscription<detection_msgs::msg::PoseMsg>(
                 "/coord_shoulder_joint_in_px_dining", 1,
                 [this](const detection_msgs::msg::PoseMsg::SharedPtr msg) { PosePixCallback_dining(msg); });
-        auto pose_sub_lr = create_subscription<detection_msgs::msg::PoseMsg>(
-                "/coord_shoulder_joint_in_px_livingroom", 1,
-                [this](const detection_msgs::msg::PoseMsg::SharedPtr msg) { PosePixCallback_livingroom(msg); });
-        auto pose_sub_hw = create_subscription<detection_msgs::msg::PoseMsg>(
-                "/coord_shoulder_joint_in_px_hallway", 1,
-                [this](const detection_msgs::msg::PoseMsg::SharedPtr msg) { PosePixCallback_hallway(msg); });
-        auto pose_sub_dw = create_subscription<detection_msgs::msg::PoseMsg>(
-                "/coord_shoulder_joint_in_px_doorway", 1,
-                [this](const detection_msgs::msg::PoseMsg::SharedPtr msg) { PosePixCallback_doorway(msg); });
+//        auto pose_sub_lr = create_subscription<detection_msgs::msg::PoseMsg>(
+//                "/coord_shoulder_joint_in_px_livingroom", 1,
+//                [this](const detection_msgs::msg::PoseMsg::SharedPtr msg) { PosePixCallback_livingroom(msg); });
+//        auto pose_sub_hw = create_subscription<detection_msgs::msg::PoseMsg>(
+//                "/coord_shoulder_joint_in_px_hallway", 1,
+//                [this](const detection_msgs::msg::PoseMsg::SharedPtr msg) { PosePixCallback_hallway(msg); });
+//        auto pose_sub_dw = create_subscription<detection_msgs::msg::PoseMsg>(
+//                "/coord_shoulder_joint_in_px_doorway", 1,
+//                [this](const detection_msgs::msg::PoseMsg::SharedPtr msg) { PosePixCallback_doorway(msg); });
 
         auto door_outdoor_sub = create_subscription<detection_msgs::msg::DoorStatus>(
                 "/smartthings_sensors_door_outdoor", 10,
@@ -145,13 +145,13 @@ public:
         return observation;
     }
 
-    LandmarkObs PosePixCallback_kitchen(const detection_msgs::msg::PoseMsg::SharedPtr &msg) {
-//        LandmarkObs observation;
-        observation.name = msg->name;
-        observation.x = msg->pixel_coordinate_x;
-        observation.y = msg->pixel_coordinate_y;
-        return observation;
-    }
+//    LandmarkObs PosePixCallback_kitchen(const detection_msgs::msg::PoseMsg::SharedPtr &msg) {
+////        LandmarkObs observation;
+//        observation.name = msg->name;
+//        observation.x = msg->pixel_coordinate_x;
+//        observation.y = msg->pixel_coordinate_y;
+//        return observation;
+//    }
     LandmarkObs PosePixCallback_dining(const detection_msgs::msg::PoseMsg::SharedPtr &msg) {
 //        LandmarkObs observation;
         observation.name = msg->name;
@@ -159,27 +159,27 @@ public:
         observation.y = msg->pixel_coordinate_y;
         return observation;
     }
-    LandmarkObs PosePixCallback_livingroom(const detection_msgs::msg::PoseMsg::SharedPtr &msg) {
-//        LandmarkObs observation;
-        observation.name = msg->name;
-        observation.x = msg->pixel_coordinate_x;
-        observation.y = msg->pixel_coordinate_y;
-        return observation;
-    }
-    LandmarkObs PosePixCallback_hallway(const detection_msgs::msg::PoseMsg::SharedPtr &msg) {
-//        LandmarkObs observation;
-        observation.name = msg->name;
-        observation.x = msg->pixel_coordinate_x;
-        observation.y = msg->pixel_coordinate_y;
-        return observation;
-    }
-    LandmarkObs PosePixCallback_doorway(const detection_msgs::msg::PoseMsg::SharedPtr &msg) {
-//        LandmarkObs observation;
-        observation.name = msg->name;
-        observation.x = msg->pixel_coordinate_x;
-        observation.y = msg->pixel_coordinate_y;
-        return observation;
-    }
+//    LandmarkObs PosePixCallback_livingroom(const detection_msgs::msg::PoseMsg::SharedPtr &msg) {
+////        LandmarkObs observation;
+//        observation.name = msg->name;
+//        observation.x = msg->pixel_coordinate_x;
+//        observation.y = msg->pixel_coordinate_y;
+//        return observation;
+//    }
+//    LandmarkObs PosePixCallback_hallway(const detection_msgs::msg::PoseMsg::SharedPtr &msg) {
+////        LandmarkObs observation;
+//        observation.name = msg->name;
+//        observation.x = msg->pixel_coordinate_x;
+//        observation.y = msg->pixel_coordinate_y;
+//        return observation;
+//    }
+//    LandmarkObs PosePixCallback_doorway(const detection_msgs::msg::PoseMsg::SharedPtr &msg) {
+////        LandmarkObs observation;
+//        observation.name = msg->name;
+//        observation.x = msg->pixel_coordinate_x;
+//        observation.y = msg->pixel_coordinate_y;
+//        return observation;
+//    }
 
 
     void publish_particles(std::vector<Particle> &particles) {       // Create a marker array message

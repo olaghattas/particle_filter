@@ -14,11 +14,6 @@
 // needed for the projection
 #include <iostream>
 
-
-
-
-
-
 #define EPSILON 1e-4
 
 //To enforce collision
