@@ -81,7 +81,7 @@ public:
     void updateWeights(double std_landmark[],
                        std::vector<LandmarkObs> observations,
                        const Eigen::Matrix<double, 3, 3, Eigen::RowMajor> intrinsicParams,
-                       Eigen::Matrix4d extrinsicParams);
+                       Eigen::Matrix<double, 4, 4, Eigen::RowMajor> extrinsicParams);
 
     void resample();
 
@@ -98,7 +98,7 @@ public:
                                std::vector<bool> doors_status);
 
     std::vector<cv::Point2d> projectParticlesto2D(const Particle particle, const Eigen::Matrix3d &intrinsicParams,
-                                         const Eigen::Matrix4d &extrinsicParams);
+                                         const Eigen::Matrix<double, 4, 4, Eigen::RowMajor> &extrinsicParams);
 };
 
 

@@ -81,11 +81,10 @@ void ParticleFilter::motion_model(double delta_t, std::array<double, 4> std_pos,
     }
 
     // to be passed in through arguments
-    bool door_open = true;
     std::string directoryPath = "/home/ola/Desktop/unity_points/";
     std::string ParamFilename = "network_params.json";
     std::string NetworkFilename = "network_config.json";
-    ParticleFilter::enforce_non_collision(particles_before, ParamFilename,NetworkFilename, doors_status);
+    ParticleFilter::enforce_non_collision(particles_before, ParamFilename, NetworkFilename, doors_status);
 
 }
 
@@ -106,7 +105,7 @@ void ParticleFilter::resample() {
 void ParticleFilter::updateWeights(double std_landmark[],
                                    std::vector<LandmarkObs> observations,
                                    const Eigen::Matrix<double, 3, 3, Eigen::RowMajor> intrinsicParams,
-                                   Eigen::Matrix4d extrinsicParams) {
+                                   Eigen::Matrix<double, 4, 4, Eigen::RowMajor> extrinsicParams) {
     // Update the weights of each particle using a multi-variate Gaussian distribution. You can read
 
     double sigma_x = std_landmark[0];
@@ -116,7 +115,8 @@ void ParticleFilter::updateWeights(double std_landmark[],
     // loop through each of the particle to update
     for (int i = 0; i < num_particles; ++i) {
         Particle *p = &particles[i];
-        double weight = 1.0;
+//        double weight = 1.0;
+        double weight = particles[i].weight;
 
         // project 3d point to pixels for now the size of observations will be one cause we are only tracking one joint which is the right shoulder
         // later we can add a kalman filter and use all the joints to predict the location of the person
@@ -137,6 +137,7 @@ void ParticleFilter::updateWeights(double std_landmark[],
                            (2 * sigma_x * sigma_x)) +
                           ((predicted_particles[0].y - current_obs.y) * (predicted_particles[0].y - current_obs.y) /
                            (2 * sigma_x * sigma_y));
+
         double gaussian_factor = 1 / (2 * M_PI * sigma_x * sigma_y);
         gaussian = exp(-gaussian);
         gaussian = gaussian * gaussian_factor;
@@ -156,7 +157,7 @@ void ParticleFilter::updateWeights(double std_landmark[],
 }
 
 // Convert Eigen matrix to OpenCV matrix
-cv::Mat eigenToCv(const Eigen::MatrixXd& eigenMat) {
+cv::Mat eigenToCv(const Eigen::MatrixXd &eigenMat) {
     cv::Mat cvMat(eigenMat.rows(), eigenMat.cols(), CV_64F);
     for (int i = 0; i < eigenMat.rows(); ++i) {
         for (int j = 0; j < eigenMat.cols(); ++j) {
@@ -168,7 +169,7 @@ cv::Mat eigenToCv(const Eigen::MatrixXd& eigenMat) {
 
 std::vector<cv::Point2d>
 ParticleFilter::projectParticlesto2D(const Particle particle_, const Eigen::Matrix3d &intrinsicMat,
-                                     const Eigen::Matrix4d &extrinsicParams) {
+                                     const Eigen::Matrix<double, 4, 4, Eigen::RowMajor> &extrinsicParams) {
 
     std::vector<cv::Point3d> objectPoints;
     objectPoints.push_back(cv::Point3d(particle_.x, particle_.y, particle_.z));
@@ -202,8 +203,8 @@ ParticleFilter::projectParticlesto2D(const Particle particle_, const Eigen::Matr
     return imagePoints;
 }
 
-// TODO; Separate training and inferencing
-void ParticleFilter::enforce_non_collision(const std::vector<Particle> &old_particles, std::string ParamFilename, std::string NetworkFilename,
+void ParticleFilter::enforce_non_collision(const std::vector<Particle> &old_particles, std::string ParamFilename,
+                                           std::string NetworkFilename,
                                            std::vector<bool> doors_status) {
 
     std::vector<float> features_inf(3 * num_particles);
@@ -246,55 +247,42 @@ void ParticleFilter::enforce_non_collision(const std::vector<Particle> &old_part
         if (pred_targets[i * num_targets + 1] > .5) {
             // non-empty
             if (pred_targets[i * num_targets + 2] > 0.5) {
-                // collision door 1
+                // collision door 1 and set weight to 0
                 if (doors_status[0]) {
                     // door 1 closed keep old particles
                     particles[i] = old_particles[i];
+                    particles[i].weight = 0.0;
                 }
             } else if (pred_targets[i * num_targets + 3] > 0.5) {
-                // collision door 2
+                // collision door 2 and set weight to 0
                 if (doors_status[1]) {
                     // door 2 closed keep old particles
                     particles[i] = old_particles[i];
+                    particles[i].weight = 0.0;
                 }
             } else if (pred_targets[i * num_targets + 4] > 0.5) {
-                // collision door 3
+                // collision door 3 and set weight to 0
                 if (doors_status[2]) {
                     // door 1 closed keep old particles
                     particles[i] = old_particles[i];
+                    particles[i].weight = 0.0;
+
                 }
             } else if (pred_targets[i * num_targets + 5] > 0.5) {
-                // collision door 4
+                // collision door 4 and set weight to 0
                 if (doors_status[3]) {
                     // door 1 closed keep old particles
                     particles[i] = old_particles[i];
+                    particles[i].weight = 0.0;
+
                 }
             } else {
-                // not empty and not doors
+                // not empty and not doors and set weight to 0
                 particles[i] = old_particles[i];
+                particles[i].weight = 0.0;
+
             }
         }
     }
 }
-
-//
-//Eigen::Vector2d ParticleFilter::projectParticlesto2D(const Eigen::Vector4d& particle, const Eigen::Matrix3d& intrinsicParams, const Eigen::Matrix4d& extrinsicParams)
-//{
-//    Eigen::MatrixXd modifiedIntrinsicParams(3, 4);
-//    modifiedIntrinsicParams << intrinsicParams(0, 0), intrinsicParams(0, 1), intrinsicParams(0, 2), 0.0,
-//            intrinsicParams(1, 0), intrinsicParams(1, 1), intrinsicParams(1, 2), 0.0,
-//            intrinsicParams(2, 0), intrinsicParams(2, 1), intrinsicParams(2, 2), 0.0;
-//
-//// Define the composite transformation matrix
-//    Eigen::Matrix<double, 4, 4> compositeMatrix = modifiedIntrinsicParams.matrix() * extrinsicParams;
-//
-//
-//    // Multiply the homogeneous 3D point with the matrix to get the projected 2D point
-//    Eigen::Vector4d projected_homog_point = compositeMatrix * particle;
-//
-//    // Store the resulting 2D point in an Eigen::Vector2d object
-//    Eigen::Vector2d projectedPoint(projected_homog_point(0) / projected_homog_point(2), projected_homog_point(1) / projected_homog_point(2));
-//
-//    return projectedPoint;
-//}
 

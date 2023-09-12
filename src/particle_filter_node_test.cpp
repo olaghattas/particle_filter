@@ -41,6 +41,7 @@
 #include "ament_index_cpp/get_package_share_directory.hpp"
 
 
+
 struct TransformData {
     double posX;
     double posY;
@@ -63,7 +64,7 @@ private:
 
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr publisher_;
 //    rclcpp::TimerBase::SharedPtr timer_;
-    std::map<std::string, Eigen::Matrix<double, 4, 4, Eigen::RowMajor>> cameraextrinsics;
+    std::map<std::string, Eigen::Matrix4d> cameraextrinsics;
     Eigen::Matrix<double, 3, 3, Eigen::RowMajor> cameraintrinsics;
     LandmarkObs observation; // Member variable to store the observation
 
@@ -112,14 +113,14 @@ public:
                 "/smartthings_sensors_door_outdoor", 10,
                 [this](const detection_msgs::msg::DoorStatus::SharedPtr msg) { DoorOutdoorCallback(msg); });
         auto door_livingroom_sub = create_subscription<detection_msgs::msg::DoorStatus>(
-                "/smartthings_sensors_door_livingroom", 10,
-                [this](const detection_msgs::msg::DoorStatus::SharedPtr msg) { DoorLivingroomCallback(msg); });
+                        "/smartthings_sensors_door_livingroom", 10,
+                        [this](const detection_msgs::msg::DoorStatus::SharedPtr msg) { DoorLivingroomCallback(msg); });
         auto door_bedroom_sub = create_subscription<detection_msgs::msg::DoorStatus>(
-                "/smartthings_sensors_door_bedroom", 10,
-                [this](const detection_msgs::msg::DoorStatus::SharedPtr msg) { DoorBedroomCallback(msg); });
+                        "/smartthings_sensors_door_bedroom", 10,
+                        [this](const detection_msgs::msg::DoorStatus::SharedPtr msg) { DoorBedroomCallback(msg); });
         auto door_bathroom_sub = create_subscription<detection_msgs::msg::DoorStatus>(
-                "/smartthings_sensors_door_bathroom", 10,
-                [this](const detection_msgs::msg::DoorStatus::SharedPtr msg) { DoorBathroomCallback(msg); });
+                        "/smartthings_sensors_door_bathroom", 10,
+                        [this](const detection_msgs::msg::DoorStatus::SharedPtr msg) { DoorBathroomCallback(msg); });
 
 // TODO: change topic to jetson cameras
         auto cameraInfoSub = create_subscription<sensor_msgs::msg::CameraInfo>(
@@ -131,15 +132,12 @@ public:
     void DoorOutdoorCallback(const detection_msgs::msg::DoorStatus::SharedPtr &msg) {
         door_outdoor = msg->open;
     }
-
     void DoorLivingroomCallback(const detection_msgs::msg::DoorStatus::SharedPtr &msg) {
         door_livingroom = msg->open;
     }
-
     void DoorBedroomCallback(const detection_msgs::msg::DoorStatus::SharedPtr &msg) {
         door_bedroom = msg->open;
     }
-
     void DoorBathroomCallback(const detection_msgs::msg::DoorStatus::SharedPtr &msg) {
         door_bathroom = msg->open;
     }
@@ -238,26 +236,25 @@ public:
 //            map_cam_aptag["bedroom"] = "aptag_3";
 //            map_cam_aptag["living"] = "aptag_4";
 //        std::vector<std::string> cams{"dining", "kitchen", "bedroom", "livingroom", "hallway", "doorway"};
-        std::vector<std::string> cams{"camera_color_optical_frame"};
+        std::vector<std::string> cams{"camera_"};
 
         // Loop over the keys of map_cam_aptag using a range-based for loop
         for (const auto &cam: cams) {
             // Get transformation matrix from camera to aptag
-            Eigen::Matrix<double, 4, 4, Eigen::RowMajor> t_aptag_to_cam = transform_tf("tag_18", cam);
-
+            Eigen::Matrix4d t_aptag_to_cam = transform_tf("tag_0", cam);
 
             // Get transformation matrix from map to waptag
-            Eigen::Matrix<double, 4, 4, Eigen::RowMajor> t_map_to_waptag = transform_tf("map", "aptag_18");
+            Eigen::Matrix4d t_map_to_waptag = transform_tf("map", "aptag_0");
 
             // Get transformation matrix from map to aptag
-            Eigen::Matrix<double, 4, 4, Eigen::RowMajor> t_map_to_cam = t_map_to_waptag * t_aptag_to_cam;
+            Eigen::Matrix4d t_map_to_cam = t_map_to_waptag * t_aptag_to_cam;
 
 //            cameraextrinsics.insert(std::make_pair(cam, t_map_to_cam));
             cameraextrinsics.insert(std::make_pair("name", t_map_to_cam));
         }
     }
 
-    Eigen::Matrix<double, 4, 4, Eigen::RowMajor> transform_tf(std::string toFrame, std::string fromFrame) {
+    Eigen::Matrix4d transform_tf(std::string toFrame, std::string fromFrame) {
 
         try {
             // get the geometry transform frames
@@ -268,7 +265,7 @@ public:
             geometry_msgs::msg::Transform transform_ = t.transform;
 
             // turn geometry transform to 4x4 matrix
-            Eigen::Matrix<double, 4, 4, Eigen::RowMajor> transform = transform_geometry_to_matrix(transform_);
+            Eigen::Matrix4d transform = transform_geometry_to_matrix(transform_);
             RCLCPP_INFO(this->get_logger(), "transform %s to %s", fromFrame.c_str(), toFrame.c_str());
 
             return transform;
@@ -286,12 +283,12 @@ public:
         return cameraintrinsics;
     }
 
-    std::map<std::string, Eigen::Matrix<double, 4, 4, Eigen::RowMajor>> get_cam_extrinsic_matrix() {
+    std::map<std::string, Eigen::Matrix4d> get_cam_extrinsic_matrix() {
         return cameraextrinsics;
     }
 
-    Eigen::Matrix<double, 4, 4, Eigen::RowMajor> transform_geometry_to_matrix(geometry_msgs::msg::Transform transform) {
-        Eigen::Matrix<double, 4, 4, Eigen::RowMajor> extrinsicmatrix;
+    Eigen::Matrix4d transform_geometry_to_matrix(geometry_msgs::msg::Transform transform) {
+        Eigen::Matrix4d extrinsicmatrix;
         Eigen::Quaterniond quaternion(transform.rotation.w,
                                       transform.rotation.x,
                                       transform.rotation.y,
@@ -315,7 +312,7 @@ int main(int argc, char **argv) {
     auto node = std::make_shared<ParticleFilterNode>();
 
     auto tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(node);
-    std::map<std::string, Eigen::Matrix<double, 4, 4, Eigen::RowMajor>> camera_extrinsics;
+    std::map<std::string, Eigen::Matrix4d> camera_extrinsics;
     Eigen::Matrix<double, 3, 3, Eigen::RowMajor> camera_intrinsics;
 
     tcnn::cpp::Module *network = nullptr;
@@ -335,13 +332,6 @@ int main(int argc, char **argv) {
             }
             if (camera_intrinsics.size() != 0 && camera_extrinsics.size() != 0) {
                 not_initialized = false;
-                for (const auto &entry: camera_extrinsics) {
-                    const std::string &key = entry.first;
-                    const Eigen::Matrix<double, 4, 4, Eigen::RowMajor> &matrix = entry.second;
-
-                    std::cout << "Key: " << key << "\n";
-                    std::cout << "Matrix:\n" << matrix << "\n";
-                }
             }
         } else {
             std::array<double, 4> sigma_pos = {0.3, 0.3, 0.3, 0.01};
@@ -362,9 +352,9 @@ int main(int argc, char **argv) {
             std::pair<double, double> z_bound = std::make_pair(-1.0, 1.0);
             std::pair<double, double> theta_bound = std::make_pair(-180.0, 180.0);
 
-            int num_particles = 128 * 6; // has to be multiple of 128
+            int num_particles = 128*6; // has to be multiple of 128
 
-            double velocity = 0.1;
+            double velocity = 0.01;
             double yaw_rate = 1.0;
             bool running = true;
 
@@ -394,6 +384,12 @@ int main(int argc, char **argv) {
                     double delta_t = duration.count() / 1000000.0;
                     delta_t = 0.1; // fr debug
 
+//
+//                    if (!network){
+//                        // train the model
+//                        network = check_collision_training(directoryPath, 3);
+//                    }
+
                     particle_filter.motion_model(delta_t, sigma_pos, velocity, yaw_rate, node->getdoorstatus());
                     node->publish_particles(particle_filter.particles);
                 }
@@ -419,7 +415,7 @@ int main(int argc, char **argv) {
                 particle_filter.resample();
 
                 // Calculate and output the average weighted error of the particle filter over all time steps so far.
-                std::vector<Particle> particles = particle_filter.particles;
+                std::vector <Particle> particles = particle_filter.particles;
                 int num_particles = particles.size();
                 double highest_weight = 0.0;
 
