@@ -35,8 +35,8 @@ struct Particle {
 struct LandmarkObs {
 
     std::string name;        // Id of matching landmark. landmark in our case is the joint we are sarting with on ebut later will include all joints
-    int x;      // x position of landmark (joint) in pixels
-    int y;      // y position of landmark (joint) in pixels
+    float x;      // x position of landmark (joint) in pixels
+    float y;      // y position of landmark (joint) in pixels
 }; // going to be 1x2 for now (left shoulder joint)
 
 /*
@@ -99,6 +99,12 @@ public:
 
     std::vector<cv::Point2d> projectParticlesto2D(const Particle particle, const Eigen::Matrix3d &intrinsicParams,
                                          const Eigen::Matrix<double, 4, 4, Eigen::RowMajor> &extrinsicParams);
+    void updateWeights_mod_debugging(double std_landmark[],
+                                                     std::vector<LandmarkObs> observations,
+                                                     const Eigen::Matrix<double, 3, 3, Eigen::RowMajor> intrinsicParams,
+                                                     Eigen::Matrix<double, 4, 4, Eigen::RowMajor> extrinsicParams,
+                                                     cv::Mat image);
+
 };
 
 

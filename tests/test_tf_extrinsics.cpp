@@ -55,7 +55,7 @@ public:
                     cameraMatrix = cameraInfoCallback(msg);
                 });
         bool sim = true;
-        // to decide, from unity i have to subscribe to tf2, thinkng of kepng it the same or getting extrininsc directly form checkerboard.
+        // to decide, from unity i have to subscribe to tf2, thinking of keepng it the same or getting extrininsc directly form checkerboard.
 
         if (sim) {
             auto tf_subscriber_ = create_subscription<geometry_msgs::msg::TransformStamped>(

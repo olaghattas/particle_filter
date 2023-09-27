@@ -81,6 +81,15 @@ target_include_directories(test_i PUBLIC ${YAML_CPP_INCLUDE_DIRS})
 target_link_libraries(test_i yaml-cpp)
 target_link_libraries(test_i ${OpenCV_LIBRARIES})
 
+add_executable(test_camera_transform src/test_camera_transform.cpp)
+ament_target_dependencies(test_camera_transform ${dependencies1})
+ament_target_dependencies(test_camera_transform ros2-tiny-cuda-nn)
+target_link_libraries(test_camera_transform ${ros2-tiny-cuda-nn_LIBRARIES})
+target_include_directories(test_camera_transform PUBLIC ${EIGEN3_INCLUDE_DIRS})
+target_include_directories(test_camera_transform PUBLIC ${YAML_CPP_INCLUDE_DIRS})
+target_link_libraries(test_camera_transform yaml-cpp)
+target_link_libraries(test_camera_transform ${OpenCV_LIBRARIES})
+
 add_executable(particle_filter_node_test src/particle_filter_node.cpp)
 ament_target_dependencies(particle_filter_node_test ${dependencies1})
 ament_target_dependencies(particle_filter_node_test ros2-tiny-cuda-nn)
@@ -119,6 +128,12 @@ install(TARGETS
         LIBRARY DESTINATION lib
         RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
+install(TARGETS
+        test_camera_transform
+        ARCHIVE DESTINATION lib
+        LIBRARY DESTINATION lib
+        RUNTIME DESTINATION lib/${PROJECT_NAME}
+)
 #target_include_directories(particle_filter_node PUBLIC
 #        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 #        $<INSTALL_INTERFACE:include>)
@@ -129,6 +144,12 @@ target_include_directories(particle_filter_node_test PUBLIC
         ${OpenCV_INCLUDE_DIRS}
         )
 target_include_directories(test_i PUBLIC
+        ${YAML_CPP_LIBRARIES}
+        ${CUDA_INCLUDE_DIRS}
+        ${ros2-tiny-cuda-nn_INCLUDE_DIR}
+        ${OpenCV_INCLUDE_DIRS}
+        )
+target_include_directories(test_camera_transform PUBLIC
         ${YAML_CPP_LIBRARIES}
         ${CUDA_INCLUDE_DIRS}
         ${ros2-tiny-cuda-nn_INCLUDE_DIR}

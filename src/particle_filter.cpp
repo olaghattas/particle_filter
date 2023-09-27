@@ -102,6 +102,93 @@ void ParticleFilter::resample() {
     particles = resampled_particles;
 }
 
+void ParticleFilter::updateWeights_mod_debugging(double std_landmark[],
+                                   std::vector<LandmarkObs> observations,
+                                   const Eigen::Matrix<double, 3, 3, Eigen::RowMajor> intrinsicParams,
+                                   Eigen::Matrix<double, 4, 4, Eigen::RowMajor> extrinsicParams,
+                                  cv::Mat image) {
+    // Update the weights of each particle using a multi-variate Gaussian distribution. You can read
+
+    double sigma_x = std_landmark[0];
+    double sigma_y = std_landmark[1];
+    double weights_sum = 0;
+
+    std::vector<cv::Point2d> observation_points;
+    std::vector<cv::Point2d> predicted_particle_points;
+
+    // loop through each of the particle to update
+    for (int i = 0; i < num_particles; ++i) {
+        Particle *p = &particles[i];
+//        double weight = 1.0;
+        double weight = particles[i].weight;
+
+        // project 3d point to pixels for now the size of observations will be one cause we are only tracking one joint which is the right shoulder
+        // later we can add a kalman filter and use all the joints to predict the location of the person
+//        for(int j=0; j<observations.size(); ++j) {
+//            LandmarkObs current_obs = observations[j]; // in pixels in the image plane
+//        }
+        LandmarkObs current_obs = observations[0]; // TODO be changed when more observations are added
+        cv::Point2d obser(current_obs.x, current_obs.y);
+//        cv::circle(image, obser, 5, cv::Scalar(0, 0, 255), -1);  // Draw red circles at projected points
+
+        /// has to be in a vector for projection cv2
+
+        // projected particles to image plane
+
+        std::vector<cv::Point2d> predicted_particles = projectParticlesto2D(*p, intrinsicParams, extrinsicParams);
+//        cv::circle(image, predicted_particles[0], 5, cv::Scalar(0, 0, 255), -1);  // Draw red circles at projected points
+
+        observation_points.push_back(obser);
+        predicted_particle_points.push_back(predicted_particles[0]);
+
+        // update weights using Multivariate Gaussian Distribution
+        // equation given in Transformations and Associations Quiz
+        double gaussian = ((predicted_particles[0].x - current_obs.x) * (predicted_particles[0].x - current_obs.x) /
+                           (2 * sigma_x * sigma_x)) +
+                          ((predicted_particles[0].y - current_obs.y) * (predicted_particles[0].y - current_obs.y) /
+                           (2 * sigma_y * sigma_y));
+
+        double gaussian_factor = 1 / (2 * M_PI * sigma_x * sigma_y);
+        gaussian = exp(-gaussian);
+        gaussian = gaussian * gaussian_factor;
+
+        weight *= gaussian;
+        weights_sum += weight;
+        p->weight = weight;
+        std::cout << weight << std::endl;
+
+        // Show the image with circles
+//        cv::imshow("Image with Circles", image);
+//        cv::waitKey(0);
+
+    }
+
+//     normalize weights to bring them in (0, 1]
+    for (int i = 0; i < num_particles; i++) {
+        Particle *p = &particles[i];
+        std::cout <<  p->weight << ":  p->weight" << std::endl;
+        p->weight /= weights_sum;
+//        weights[i] = p->weight;
+//        std::cout << "weights" << p->weight << " x " << p->x << " y "<< p->y << std::endl;
+    }
+
+
+    // Draw all circles for observations red
+    for (const cv::Point2d& obs_point : observation_points) {
+        cv::circle(image, obs_point, 5, cv::Scalar(255, 0, 0), -1);  // Draw red circles at observation points
+    }
+
+    // Draw all circles for predicted particles blue
+    for (const cv::Point2d& particle_point : predicted_particle_points) {
+        cv::circle(image, particle_point, 5, cv::Scalar(0, 0, 255), -1);  // Draw red circles at predicted particle points
+    }
+
+    // Show the image with all circles
+    cv::imshow("Image with Circles", image);
+    cv::waitKey(0);
+    cv::destroyAllWindows();
+}
+
 void ParticleFilter::updateWeights(double std_landmark[],
                                    std::vector<LandmarkObs> observations,
                                    const Eigen::Matrix<double, 3, 3, Eigen::RowMajor> intrinsicParams,
@@ -124,7 +211,6 @@ void ParticleFilter::updateWeights(double std_landmark[],
 //            LandmarkObs current_obs = observations[j]; // in pixels in the image plane
 //        }
         LandmarkObs current_obs = observations[0]; // TODO be changed when more observations are added
-
         /// has to be in a vector for rojecton cv2
 
         // projected particles to image plane
@@ -145,6 +231,7 @@ void ParticleFilter::updateWeights(double std_landmark[],
         weight *= gaussian;
         weights_sum += weight;
         p->weight = weight;
+        std::cout << weight << std::endl;
     }
 
 
@@ -199,6 +286,10 @@ ParticleFilter::projectParticlesto2D(const Particle particle_, const Eigen::Matr
             intrinsicMat(2, 0), intrinsicMat(2, 1), intrinsicMat(2, 2));
 
     cv::projectPoints(objectPoints, rvec, tvec, cvIntrinsicMat, cv::Mat(), imagePoints);
+
+    std::cout << " rvec: " << rvec << std::endl;
+    std::cout << " tvec: " << tvec << std::endl;
+    std::cout << " imagePoints: " << imagePoints << std::endl;
 
     return imagePoints;
 }

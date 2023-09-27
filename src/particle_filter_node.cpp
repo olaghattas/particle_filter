@@ -79,6 +79,7 @@ private:
     bool door_bathroom;
 
 
+
 public:
     ParticleFilterNode() : Node("particle_filter") {
 
@@ -126,7 +127,15 @@ public:
                 "/camera/color/camera_info", 1,
                 [this](const sensor_msgs::msg::CameraInfo::SharedPtr msg) { cameraInfoCallback(msg); });
 
+        /// for validation particle filter
+        auto cameraImage = create_subscription<sensor_msgs::msg::Image>(
+                "/camera/color/image_raw", 1,
+                [this](const sensor_msgs::msg::Image::SharedPtr msg) { cameraImgCallback(msg); });
+
+
     }
+
+    cv::Mat image_cv;
 
     void DoorOutdoorCallback(const detection_msgs::msg::DoorStatus::SharedPtr &msg) {
         door_outdoor = msg->open;
@@ -227,6 +236,21 @@ public:
         // Access camera matrix values
         Eigen::Map<const Eigen::Matrix<double, 3, 3, Eigen::RowMajor>> K(msg->k.data());
         cameraintrinsics = K;
+    }
+
+    void cameraImgCallback(const sensor_msgs::msg::Image::SharedPtr &image_msg) {
+        try {
+            // Convert the sensor_msgs::Image to a cv::Mat using cv_bridge
+            cv_bridge::CvImageConstPtr cv_ptr = cv_bridge::toCvShare(image_msg, image_msg->encoding);
+
+            // Access the cv::Mat containing the image data
+            image_cv = cv_ptr->image;
+
+            // Now you can work with the 'image' cv::Mat
+            // For example, you can display it or perform image processing operations
+        } catch (cv_bridge::Exception& e) {
+            RCLCPP_ERROR(get_logger(), "cv_bridge exception: %s", e.what());
+        }
     }
 
     void cam_extrinsics_from_tf() {
