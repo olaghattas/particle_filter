@@ -18,6 +18,7 @@ find_package(Eigen3 REQUIRED)
 find_package(collision_lib REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(zed_interfaces REQUIRED)
 #find_package(fcl REQUIRED)
 find_package(CUDA REQUIRED)
 find_package(ros2-tiny-cuda-nn REQUIRED)
@@ -40,6 +41,7 @@ set(dependencies1
         detection_msgs
         collision_lib
         tf2_ros
+        zed_interfaces
         )
 
 # Add executable
@@ -111,7 +113,7 @@ include_directories(
 
 install(TARGETS
         particle_filter
-#        particle_filter_node
+        particle_filter_node
         DESTINATION lib/${PROJECT_NAME}
         )
 

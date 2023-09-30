@@ -32,11 +32,12 @@ struct Particle {
     double weight;
 };
 
-struct LandmarkObs {
+struct Observation {
 
-    std::string name;        // Id of matching landmark. landmark in our case is the joint we are sarting with on ebut later will include all joints
-    int x;      // x position of landmark (joint) in pixels
-    int y;      // y position of landmark (joint) in pixels
+    std::string name;        // Id of matching landmark. landmark in our case is the joint we are starting with on ebut later will include all joints
+    double x;      // x position of landmark (joint) in world
+    double y;      // y position of landmark (joint) in world
+    double z;      // z position of landmark (joint) in world
 }; // going to be 1x2 for now (left shoulder joint)
 
 /*
@@ -79,9 +80,8 @@ public:
                       std::vector<bool> doors_status);
 
     void updateWeights(double std_landmark[],
-                       std::vector<LandmarkObs> observations,
-                       const Eigen::Matrix<double, 3, 3, Eigen::RowMajor> intrinsicParams,
-                       Eigen::Matrix4d extrinsicParams);
+                       std::vector<Observation> observations,
+                       Eigen::Matrix<double, 4, 4, Eigen::RowMajor> extrinsicParams);
 
     void resample();
 
@@ -92,13 +92,9 @@ public:
         return is_initialized;
     }
 
-//    void enforce_non_collision(const std::vector<Particle> &part);
-
     void enforce_non_collision(const std::vector<Particle> &old_particles, std::string ParamFilename, std::string NetworkFilename,
                                std::vector<bool> doors_status);
 
-    std::vector<cv::Point2d> projectParticlesto2D(const Particle particle, const Eigen::Matrix3d &intrinsicParams,
-                                         const Eigen::Matrix4d &extrinsicParams);
 };
 
 
