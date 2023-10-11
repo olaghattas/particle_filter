@@ -47,7 +47,7 @@ void ParticleFilter::motion_model(double delta_t, std::array<double, 4> std_pos,
     std::normal_distribution<double> zNoise(0, std_pos[2]);
     std::normal_distribution<double> yawNoise(0, std_pos[3]);
     auto particles_before = particles;
-
+    std::cout << " x _befor"<< particles[0].x <<  " y_befor"<< particles[0].y  << std::endl;
     for (auto &p: particles) {
         double yaw = p.theta;
 
@@ -70,7 +70,7 @@ void ParticleFilter::motion_model(double delta_t, std::array<double, 4> std_pos,
         //Add control noise
         delta_x += xNoise(gen) * delta_t;
         delta_y += yNoise(gen) * delta_t;
-        delta_z += zNoise(gen) * delta_t;
+//        delta_z += zNoise(gen) * delta_t;
         delta_yaw += yawNoise(gen) * delta_t;
 
 
@@ -79,6 +79,8 @@ void ParticleFilter::motion_model(double delta_t, std::array<double, 4> std_pos,
         p.z += delta_z;
         p.theta += delta_yaw;
     }
+
+    std::cout << " x _after"<< particles[0].x <<  " y_after"<< particles[0].y  << std::endl;
 
     // to be passed in through arguments
     bool door_open = true;
@@ -131,25 +133,29 @@ void ParticleFilter::updateWeights(double std_landmark[],
 
         // update weights using Multivariate Gaussian Distribution
         // equation given in Transformations and Associations Quiz
+//        double gaussian = ((p->x - TransformedPoint[0]) * (p->x - TransformedPoint[0]) /
+//                           (2 * sigma_x * sigma_x)) +
+//                          ((p->y - TransformedPoint[1]) * (p->y - TransformedPoint[1]) /
+//                           (2 * sigma_y * sigma_y)) + ((p->z - TransformedPoint[2]) * (p->z - TransformedPoint[2]) /
+//                                                       (2 * sigma_z * sigma_z));
+//        double gaussian_factor = 1 / (2 * M_PI * sigma_x * sigma_y * sigma_z);
+
         double gaussian = ((p->x - TransformedPoint[0]) * (p->x - TransformedPoint[0]) /
                            (2 * sigma_x * sigma_x)) +
                           ((p->y - TransformedPoint[1]) * (p->y - TransformedPoint[1]) /
-                           (2 * sigma_y * sigma_y)) + ((p->z - TransformedPoint[2]) * (p->z - TransformedPoint[2]) /
-                                                       (2 * sigma_z * sigma_z));
-        double gaussian_factor = 1 / (2 * M_PI * sigma_x * sigma_y * sigma_z);
+                           (2 * sigma_y * sigma_y));
+        double gaussian_factor = 1 / (2 * M_PI * sigma_x * sigma_y );
         gaussian = exp(-gaussian);
         gaussian = gaussian * gaussian_factor;
 
         weight *= gaussian;
         weights_sum += weight;
-        p->weight = weight;
+        particles[i].weight = weight;
     }
 
     // normalize weights to bring them in (0, 1]
     for (int i = 0; i < num_particles; i++) {
-        Particle *p = &particles[i];
-        p->weight /= weights_sum;
-        weights[i] = p->weight;
+        particles[i].weight /= weights_sum;
     }
 }
 
@@ -174,6 +180,7 @@ void ParticleFilter::enforce_non_collision(const std::vector<Particle> &old_part
     /// path to params file
     std::filesystem::path pkg_dir = ament_index_cpp::get_package_share_directory("particle_filter");
     auto json_file_path = pkg_dir / "config" / ParamFilename;
+
     std::ifstream inputFile(json_file_path.string());
     if (inputFile.is_open()) {
         inputFile >> jsonArray;
@@ -181,6 +188,7 @@ void ParticleFilter::enforce_non_collision(const std::vector<Particle> &old_part
     } else {
         std::cerr << "Unable to open output.json for reading" << std::endl;
     }
+
     std::vector<float> floatVector = jsonArray.get<std::vector<float>>();
 
     auto net_file_path = pkg_dir / "config" / NetworkFilename;
@@ -228,6 +236,7 @@ void ParticleFilter::enforce_non_collision(const std::vector<Particle> &old_part
                 // not empty and not doors
                 particles[i] = old_particles[i];
                 particles[i].weight = 0.0;
+
             }
         }
     }
