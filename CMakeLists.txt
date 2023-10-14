@@ -28,8 +28,7 @@ find_package(detection_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(OpenCV REQUIRED)
-
-
+#find_package(plotty REQUIRED)
 
 set(dependencies1
         rclcpp
@@ -42,6 +41,7 @@ set(dependencies1
         collision_lib
         tf2_ros
         zed_interfaces
+#        plotty
         )
 
 # Add executable

@@ -395,6 +395,8 @@ int main(int argc, char **argv) {
 
     bool not_initialized = true;
     while (rclcpp::ok()) {
+        /// comment when not debugging
+//        not_initialized = true;
         if (not_initialized) {
             camera_extrinsics = node->get_cam_extrinsic_matrix();
 
@@ -402,11 +404,10 @@ int main(int argc, char **argv) {
                 not_initialized = false;
             }
         } else {
-
             bool debug = false;
             if (debug) {
                 ////////// START  TESTINGGGG  //////////
-            auto cam_ext = camera_extrinsics["kitchen"];
+//            auto cam_ext = camera_extrinsics["kitchen"];
 //                Eigen::Matrix<double, 4, 4, Eigen::RowMajor> cam_ext;
 //                cam_ext << 0.640011, -0.0872212, -0.763399, 0.491301,
 //                        0.618233, 0.648423, 0.444224, -6.02883,
@@ -418,8 +419,8 @@ int main(int argc, char **argv) {
 //                -0.744756  0.563896 -0.356876   2.46518
 //                -0.34567  0.131468  0.929101 -0.213102
 
-                auto t_ = node->publish_transform(cam_ext, "map", "zed_cam");
-                tf_broadcaster_->sendTransform(t_);
+//                auto t_ = node->publish_transform(cam_ext, "map", "zed_cam");
+//                tf_broadcaster_->sendTransform(t_);
                 // test point in camera frame
                 // - 0.6684114336967468
                 //      - -0.837434709072113
@@ -443,12 +444,24 @@ int main(int argc, char **argv) {
 //                // visualize pt in red
 //                node->publish_3d_point(TransformedPoint[0], TransformedPoint[1], TransformedPoint[2], "map", 1, 0, 0);
 
+
+                Eigen::Matrix<double, 4, 4, Eigen::RowMajor> cam_ext;
+                cam_ext <<  0.742273,  0.653267,  0.149242,   1.14506,
+                            -0.546601,  0.719102, -0.429092,   2.65313,
+                            -0.387632,  0.236927,  0.890846, -0.265419,
+                            0, 0, 0, 1;
+//            std::cout << " t_cam_to_map " << t_cam_to_map << std::endl;
+//            cameraextrinsics.insert(std::make_pair(cam, t_map_to_cam));
+
+                std::map<std::string, Eigen::Matrix < double, 4, 4, Eigen::RowMajor>> cameraextrinsics_;
+                cameraextrinsics_.insert(std::make_pair("kitchen", cam_ext));
                 //////////  END  TESTINGGGG  //////////
+                camera_extrinsics = cameraextrinsics_;
             }
 
-//            std::array<double, 4> sigma_pos = {0.3, 0.3, 0.3, 0.01};
+            std::array<double, 4> sigma_pos = {0.3, 0.3, 0.3, 0.01};
 
-            double sigma_landmark[3] = {0.3, 0.3, 0.3};
+            double sigma_landmark[3] = {0.04, 0.04, 0.04};
 
             // noise generation
             std::default_random_engine gen;
@@ -465,18 +478,12 @@ int main(int argc, char **argv) {
             std::pair<double, double> z_bound = std::make_pair(-1.0, -1.0);
             std::pair<double, double> theta_bound = std::make_pair(-3.1416, 3.1416);
 
-            int num_particles = 128 * 4; // has to be multiple of 128
+            int num_particles = 128 * 50; // has to be multiple of 128
 
-            double velocity = 1;
+            double velocity = 0.1;
             double yaw_rate = 0.5;
             bool running = true;
 
-/// cmaera extrinisc video 1
-//            camera_extrinsics["kitchen"] =
-//            0.742273  0.653267  0.149242   1.14506
-//            -0.546601  0.719102 -0.429092   2.65313
-//            -0.387632  0.236927  0.890846 -0.265419
-//            0         0         0         1
 
             ParticleFilter particle_filter(num_particles);
 
@@ -504,7 +511,6 @@ int main(int argc, char **argv) {
                 node->publish_3d_point(TransformedPoint[0], TransformedPoint[1], TransformedPoint[2], "map", 0, 0, 1);
 
 
-
                 // observation will always be from the same camera
                 std::string cam_name = obs_.name;
                 observations.push_back(obs_);
@@ -523,8 +529,9 @@ int main(int argc, char **argv) {
                     double delta_t = duration.count() / 1000000.0;
                     delta_t = 0.1; // fr debug
 
+
                     particle_filter.motion_model(delta_t, node->sigma_pos, velocity, yaw_rate, node->getdoorstatus());
-                    node->publish_particles(particle_filter.particles);
+//                    node->publish_particles(particle_filter.particles);
                 }
 
                 // simulate the addition of noise to noiseless observation data.
@@ -545,6 +552,7 @@ int main(int argc, char **argv) {
                 particle_filter.updateWeights(sigma_landmark, noisy_observations,
                                               camera_extrinsics[cam_name]);
                 particle_filter.resample();
+                node->publish_particles(particle_filter.particles);
 
                 // Calculate and output the average weighted error of the particle filter over all time steps so far.
                 std::vector<Particle> particles = particle_filter.particles;

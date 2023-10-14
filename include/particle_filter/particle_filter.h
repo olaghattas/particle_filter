@@ -95,6 +95,9 @@ public:
     void enforce_non_collision(const std::vector<Particle> &old_particles, std::string ParamFilename, std::string NetworkFilename,
                                std::vector<bool> doors_status);
 
+    void write_to_file(std::string filename);
+    float sample(float mean, float variance);
+
 };
 
 

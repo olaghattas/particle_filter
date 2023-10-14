@@ -13,6 +13,7 @@
   <buildtool_depend>detection_msgs</buildtool_depend>
 
   <depend>visualization_msgs</depend>
+<!--  <depend>plotty</depend>-->
   <depend>zed_interfaces</depend>
   <depend>rclcpp_components</depend>
   <depend>rclcpp</depend>
