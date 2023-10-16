@@ -34,7 +34,7 @@ struct Particle {
 
 struct Observation {
 
-    std::string name;        // Id of matching landmark. landmark in our case is the joint we are starting with on ebut later will include all joints
+    std::string name;        // Id of matching landmark. landmark in our case is the joint we are starting with one but later will include all joints
     double x;      // x position of landmark (joint) in world
     double y;      // y position of landmark (joint) in world
     double z;      // z position of landmark (joint) in world

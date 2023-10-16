@@ -65,7 +65,7 @@ private:
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr publisher_;
     rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr publisher_3d_pt;
 //    rclcpp::TimerBase::SharedPtr timer_;
-    std::map<std::string, Eigen::Matrix < double, 4, 4, Eigen::RowMajor>> cameraextrinsics;
+    std::map<std::string, Eigen::Matrix<double, 4, 4, Eigen::RowMajor>> cameraextrinsics;
     rclcpp::Subscription<zed_interfaces::msg::ObjectsStamped>::SharedPtr pose_sub_k;
     Observation observation; // Member variable to store the observation
 
@@ -148,7 +148,7 @@ public:
         return {door_outdoor, door_livingroom, door_bedroom, door_bathroom};
     }
 
-    Observation getObservation() const {
+    Observation getObservation() {
         return observation;
     }
 
@@ -164,13 +164,13 @@ public:
 //#    4 ------- 7
 
             if (msg->objects[0].skeleton_available) {
-                    observation.name = "kitchen";
+                observation.name = "kitchen";
 //                observation.x = msg->objects[0].skeleton_3d.keypoints[1].kp[0];
 //                observation.y = msg->objects[0].skeleton_3d.keypoints[1].kp[1];
 //                observation.z = msg->objects[0].skeleton_3d.keypoints[1].kp[2];
                 zed_interfaces::msg::BoundingBox3D bounding_box = msg->objects[0].bounding_box_3d;
                 float sum_x = 0.0, sum_y = 0.0, sum_z = 0.0;
-                for (int i = 0; i<8 ;i++) {
+                for (int i = 0; i < 8; i++) {
                     sum_x += bounding_box.corners[i].kp[0];
                     sum_y += bounding_box.corners[i].kp[1];
                     sum_z += bounding_box.corners[i].kp[2];
@@ -186,8 +186,9 @@ public:
                 sigma_pos[2] = msg->objects[0].dimensions_3d[2];
                 sigma_pos[3] = 0.1;
             }
-        }else {
+        } else {
             std::cout << "no person detected" << std::endl;
+            observation.name = "";
 
         }
     }
@@ -333,7 +334,7 @@ public:
         }
     }
 
-    std::map<std::string, Eigen::Matrix < double, 4, 4, Eigen::RowMajor>> get_cam_extrinsic_matrix() {
+    std::map<std::string, Eigen::Matrix<double, 4, 4, Eigen::RowMajor>> get_cam_extrinsic_matrix() {
         cam_extrinsics_from_tf();
         return cameraextrinsics;
     }
@@ -387,16 +388,15 @@ int main(int argc, char **argv) {
     auto node = std::make_shared<ParticleFilterNode>();
 
     auto tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(node);
-    std::map<std::string, Eigen::Matrix < double, 4, 4, Eigen::RowMajor>> camera_extrinsics;
+    std::map<std::string, Eigen::Matrix<double, 4, 4, Eigen::RowMajor>> camera_extrinsics;
 
     // Todo map observation to camera intrinsic and extrinsics
     //    std::map<std::string, cv::Mat> cameraExtrinsics;
     //    cameraExtrinsics.insert(std::make_pair("dining", result_dining));
 
-    bool not_initialized = true;
+    bool not_initialized = false;
     while (rclcpp::ok()) {
         /// comment when not debugging
-//        not_initialized = true;
         if (not_initialized) {
             camera_extrinsics = node->get_cam_extrinsic_matrix();
 
@@ -404,7 +404,7 @@ int main(int argc, char **argv) {
                 not_initialized = false;
             }
         } else {
-            bool debug = false;
+            bool debug = true;
             if (debug) {
                 ////////// START  TESTINGGGG  //////////
 //            auto cam_ext = camera_extrinsics["kitchen"];
@@ -446,14 +446,14 @@ int main(int argc, char **argv) {
 
 
                 Eigen::Matrix<double, 4, 4, Eigen::RowMajor> cam_ext;
-                cam_ext <<  0.742273,  0.653267,  0.149242,   1.14506,
-                            -0.546601,  0.719102, -0.429092,   2.65313,
-                            -0.387632,  0.236927,  0.890846, -0.265419,
-                            0, 0, 0, 1;
+                cam_ext << 0.742273, 0.653267, 0.149242, 1.14506,
+                        -0.546601, 0.719102, -0.429092, 2.65313,
+                        -0.387632, 0.236927, 0.890846, -0.265419,
+                        0, 0, 0, 1;
 //            std::cout << " t_cam_to_map " << t_cam_to_map << std::endl;
 //            cameraextrinsics.insert(std::make_pair(cam, t_map_to_cam));
 
-                std::map<std::string, Eigen::Matrix < double, 4, 4, Eigen::RowMajor>> cameraextrinsics_;
+                std::map<std::string, Eigen::Matrix<double, 4, 4, Eigen::RowMajor>> cameraextrinsics_;
                 cameraextrinsics_.insert(std::make_pair("kitchen", cam_ext));
                 //////////  END  TESTINGGGG  //////////
                 camera_extrinsics = cameraextrinsics_;
@@ -475,7 +475,7 @@ int main(int argc, char **argv) {
             std::pair<double, double> x_bound = std::make_pair(-5, 5.0);
             std::pair<double, double> y_bound = std::make_pair(-7.0, 7.0);
 //            std::pair<double, double> z_bound = std::make_pair(-1.0, 1.0);
-            std::pair<double, double> z_bound = std::make_pair(-1.0, -1.0);
+            std::pair<double, double> z_bound = std::make_pair(-0.5, -0.5);
             std::pair<double, double> theta_bound = std::make_pair(-3.1416, 3.1416);
 
             int num_particles = 128 * 50; // has to be multiple of 128
@@ -488,70 +488,80 @@ int main(int argc, char **argv) {
             ParticleFilter particle_filter(num_particles);
 
             while (running) {
+//                auto beg = std::chrono::high_resolution_clock::now();
                 auto t_ = node->publish_transform(camera_extrinsics["kitchen"], "map", "zed_cam");
                 tf_broadcaster_->sendTransform(t_);
 
-                auto beg = std::chrono::high_resolution_clock::now();
-                std::vector<Observation> observations;
-                auto obs_ = node -> getObservation();
-
-                Eigen::Vector4d homogeneousPoint;
-                homogeneousPoint << obs_.x, obs_.y, obs_.z, 1.0;
-                node->publish_3d_point(homogeneousPoint[0], homogeneousPoint[1], homogeneousPoint[2], "zed_cam", 1, 0, 0);
-                auto extrinsicParams =  camera_extrinsics["kitchen"];
-
-                Eigen::Vector4d TransformedPoint;
-                TransformedPoint << extrinsicParams(0,0) * homogeneousPoint[0] + extrinsicParams(0,1) * homogeneousPoint[1] + extrinsicParams(0,2) * homogeneousPoint[2] + extrinsicParams(0,3) * homogeneousPoint[3],
-                        extrinsicParams(1,0) * homogeneousPoint[0] + extrinsicParams(1,1) * homogeneousPoint[1] + extrinsicParams(1,2) * homogeneousPoint[2] + extrinsicParams(1,3) * homogeneousPoint[3],
-                        extrinsicParams(2,0) * homogeneousPoint[0] + extrinsicParams(2,1) * homogeneousPoint[1] + extrinsicParams(2,2) * homogeneousPoint[2] + extrinsicParams(2,3) * homogeneousPoint[3],
-                        extrinsicParams(3,0) * homogeneousPoint[0] + extrinsicParams(3,1) * homogeneousPoint[1] + extrinsicParams(3,2) * homogeneousPoint[2] + extrinsicParams(3,3) * homogeneousPoint[3];
-
-                std::cout << "  camera_extrinsics[\"kitchen\"]  " << camera_extrinsics["kitchen"]  << std::endl;
-//                std::cout << " Observation ::: x " << TransformedPoint[0] << " y " << TransformedPoint[1] << " z " << TransformedPoint[2] << std::endl;
-                node->publish_3d_point(TransformedPoint[0], TransformedPoint[1], TransformedPoint[2], "map", 0, 0, 1);
-
-
-                // observation will always be from the same camera
-                std::string cam_name = obs_.name;
-                observations.push_back(obs_);
-
                 if (!particle_filter.initialized()) {
-
                     // Initialize the particle filter in a uniform distribution
                     particle_filter.init(x_bound, y_bound, z_bound, theta_bound);
                     node->publish_particles(particle_filter.particles);
+
                 } else {
                     // Predict the vehicle's next state (noiseless).
-                    auto end = std::chrono::high_resolution_clock::now();
-                    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - beg);
-
-                    /// todo fix
-                    double delta_t = duration.count() / 1000000.0;
-                    delta_t = 0.1; // fr debug
+                    /// not being used delta_t
+//                    auto end = std::chrono::high_resolution_clock::now();
+//                    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - beg);
+//                    double delta_t = duration.count() / 1000000.0;
+                    double delta_t = 0.1; // fr debug
 
 
                     particle_filter.motion_model(delta_t, node->sigma_pos, velocity, yaw_rate, node->getdoorstatus());
 //                    node->publish_particles(particle_filter.particles);
                 }
 
-                // simulate the addition of noise to noiseless observation data.
-                std::vector<Observation> noisy_observations;
-                Observation obs;
 
-                // which is currently 1
-                for (int j = 0; j < observations.size(); ++j) {
-                    n_x = N_obs_x(gen);
-                    n_y = N_obs_y(gen);
-                    obs = observations[j];
-                    obs.x = obs.x + n_x;
-                    obs.y = obs.y + n_y;
-                    noisy_observations.push_back(obs);
+                // get observation and skip if no observation is there
+                std::vector<Observation> observations;
+                Observation obs_ = node->getObservation();
+                if (obs_.name != "") {
+                    Eigen::Vector4d homogeneousPoint;
+                    homogeneousPoint << obs_.x, obs_.y, obs_.z, 1.0;
+                    node->publish_3d_point(homogeneousPoint[0], homogeneousPoint[1], homogeneousPoint[2], "zed_cam", 1,
+                                           0, 0);
+                    auto extrinsicParams = camera_extrinsics["kitchen"];
+
+                    Eigen::Vector4d TransformedPoint;
+                    TransformedPoint << extrinsicParams(0, 0) * homogeneousPoint[0] +
+                                        extrinsicParams(0, 1) * homogeneousPoint[1] +
+                                        extrinsicParams(0, 2) * homogeneousPoint[2] +
+                                        extrinsicParams(0, 3) * homogeneousPoint[3],
+                            extrinsicParams(1, 0) * homogeneousPoint[0] + extrinsicParams(1, 1) * homogeneousPoint[1] +
+                            extrinsicParams(1, 2) * homogeneousPoint[2] + extrinsicParams(1, 3) * homogeneousPoint[3],
+                            extrinsicParams(2, 0) * homogeneousPoint[0] + extrinsicParams(2, 1) * homogeneousPoint[1] +
+                            extrinsicParams(2, 2) * homogeneousPoint[2] + extrinsicParams(2, 3) * homogeneousPoint[3],
+                            extrinsicParams(3, 0) * homogeneousPoint[0] + extrinsicParams(3, 1) * homogeneousPoint[1] +
+                            extrinsicParams(3, 2) * homogeneousPoint[2] + extrinsicParams(3, 3) * homogeneousPoint[3];
+
+                    std::cout << "  camera_extrinsics[\"kitchen\"]  " << camera_extrinsics["kitchen"] << std::endl;
+                    //                std::cout << " Observation ::: x " << TransformedPoint[0] << " y " << TransformedPoint[1] << " z " << TransformedPoint[2] << std::endl;
+                    node->publish_3d_point(TransformedPoint[0], TransformedPoint[1], TransformedPoint[2], "map", 0, 0,
+                                           1);
+
+
+                    // observation will always be from the same camera
+                    std::string cam_name = obs_.name;
+                    observations.push_back(obs_);
+
+                    // simulate the addition of noise to noiseless observation data.
+                    std::vector<Observation> noisy_observations;
+                    Observation obs;
+
+                    // which is currently 1
+                    for (int j = 0; j < observations.size(); ++j) {
+                        n_x = N_obs_x(gen);
+                        n_y = N_obs_y(gen);
+                        obs = observations[j];
+                        obs.x = obs.x + n_x;
+                        obs.y = obs.y + n_y;
+                        noisy_observations.push_back(obs);
+                    }
+
+                    // Update the weights and resample
+                    particle_filter.updateWeights(sigma_landmark, noisy_observations,
+                                                  camera_extrinsics[cam_name]);
+                    particle_filter.resample();
                 }
-
-                // Update the weights and resample
-                particle_filter.updateWeights(sigma_landmark, noisy_observations,
-                                              camera_extrinsics[cam_name]);
-                particle_filter.resample();
                 node->publish_particles(particle_filter.particles);
 
                 // Calculate and output the average weighted error of the particle filter over all time steps so far.
