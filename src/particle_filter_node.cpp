@@ -281,7 +281,7 @@ public:
     }
 
     void cam_extrinsics_from_tf() {
-        /// Test
+
 //            std::map<std::string, std::string> map_cam_aptag;
         // map cameras to aptags ids
 //            map_cam_aptag["dining"] = "aptagcam_extrinsics_from_tf_1";
@@ -294,12 +294,12 @@ public:
         // Loop over the keys of map_cam_aptag using a range-based for loop
         for (const auto &cam: cams) {
             // Get transformation matrix from camera to aptag /// from aptag detection
-            Eigen::Matrix<double, 4, 4, Eigen::RowMajor> t_cam_to_aptag = transform_tf("tag_7", cam);
-//            std::cout << " t_cam_to_aptag " << t_cam_to_aptag << std::endl;
+            Eigen::Matrix<double, 4, 4, Eigen::RowMajor> t_cam_to_aptag = transform_tf("tag_18_zed", cam);
+            std::cout << " t_cam_to_aptag " << t_cam_to_aptag << std::endl;
 
             // Get transformation matrix from map to waptag
-            Eigen::Matrix<double, 4, 4, Eigen::RowMajor> t_waptag_to_cam = transform_tf("map", "aptag_7");
-//            std::cout << " t_waptag_to_cam " << t_waptag_to_cam << std::endl;
+            Eigen::Matrix<double, 4, 4, Eigen::RowMajor> t_waptag_to_cam = transform_tf("map", "aptag_18");
+            std::cout << " t_waptag_to_cam " << t_waptag_to_cam << std::endl;
 
             // Get transformation matrix from map to aptag
             Eigen::Matrix<double, 4, 4, Eigen::RowMajor> t_cam_to_map = t_waptag_to_cam * t_cam_to_aptag;
@@ -315,7 +315,7 @@ public:
             // get the geometry transform frames
             geometry_msgs::msg::TransformStamped t = tf_buffer_->lookupTransform(
                     toFrame, fromFrame,
-                    tf2::TimePoint(), std::chrono::milliseconds(1000));
+                    tf2::TimePoint(), std::chrono::milliseconds(10000000));
 
             geometry_msgs::msg::Transform transform_ = t.transform;
 
@@ -394,7 +394,7 @@ int main(int argc, char **argv) {
     //    std::map<std::string, cv::Mat> cameraExtrinsics;
     //    cameraExtrinsics.insert(std::make_pair("dining", result_dining));
 
-    bool not_initialized = false;
+    bool not_initialized = true;
     while (rclcpp::ok()) {
         /// comment when not debugging
         if (not_initialized) {
@@ -404,7 +404,7 @@ int main(int argc, char **argv) {
                 not_initialized = false;
             }
         } else {
-            bool debug = true;
+            bool debug = false;
             if (debug) {
                 ////////// START  TESTINGGGG  //////////
 //            auto cam_ext = camera_extrinsics["kitchen"];
